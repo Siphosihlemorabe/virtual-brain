@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import brain as brainstore
 from . import career
-from . import llm, simulate
+from . import llm, simulate, spamlab
 from .orchestrator import Session
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -51,6 +51,60 @@ def index():
 @app.get("/api/sim/events")
 def sim_events():
     return simulate.catalogue()
+
+
+def _threshold(t):
+    from fractions import Fraction
+    try:
+        v = Fraction(str(t)).limit_denominator(100)
+    except (ValueError, ZeroDivisionError):
+        v = Fraction(1, 2)
+    return min(max(v, Fraction(1, 20)), Fraction(19, 20))
+
+
+@app.get("/api/spamlab")
+def spam_payload():
+    current.spam_open()
+    return spamlab.payload()
+
+
+def _spam_call(fn, *args):
+    try:
+        return fn(*args)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/spamlab/table")
+def spam_table(words: str = Form("[]"), table: str = Form("{}")):
+    return _spam_call(current.spam_table, json.loads(words), json.loads(table))
+
+
+@app.post("/api/spamlab/hand")
+def spam_hand(words: str = Form("[]"), working: str = Form("")):
+    return _spam_call(current.spam_hand, json.loads(words), working)
+
+
+@app.get("/api/spamlab/demo")
+def spam_demo(words: str = "[]", slip: bool = False, part: str = "table"):
+    w = _spam_call(current._spam_words, json.loads(words))
+    if part == "hand":
+        return {"working": spamlab.demo_hand(spamlab.HAND_EMAIL, w, slip)}
+    table = {k: str(v) for k, v in spamlab.true_table(w).items()}
+    if slip:  # a realistic mistake: the two piles mixed up for the first word
+        table[f"p_{w[0]}_spam"], table[f"p_{w[0]}_ham"] = table[f"p_{w[0]}_ham"], table[f"p_{w[0]}_spam"]
+    return {"table": table}
+
+
+@app.post("/api/spamlab/run")
+def spam_run(words: str = Form("[]"), table: str = Form("{}"), mode: str = Form("mine"), threshold: str = Form("0.5")):
+    return _spam_call(current.spam_run, json.loads(words), json.loads(table), mode, _threshold(threshold))
+
+
+@app.post("/api/spamlab/explain")
+def spam_explain(email: str = Form(...), words: str = Form("[]"), table: str = Form("{}"), mode: str = Form("mine"),
+                 threshold: str = Form("0.5")):
+    return _spam_call(current.spam_explain, email, json.loads(words), json.loads(table), mode, _threshold(threshold))
 
 
 @app.get("/api/samples")

@@ -174,6 +174,41 @@
   .lab-chart .lbl { font:9px system-ui; fill:var(--muted); }
   .lab-caption { font-size:12px; }
 
+  /* spam lab */
+  .sl-inbox { max-height:320px; overflow-y:auto; border:1px solid var(--line); border-radius:10px; }
+  .sl-mail { display:grid; grid-template-columns:150px 1fr auto auto; gap:8px; align-items:center; padding:8px 10px; border-bottom:1px solid var(--line); font-size:14px; }
+  .sl-mail.small { display:block; font-size:13px; padding:6px 8px; }
+  .sl-mail.done { opacity:.55; }
+  .sl-from { color:var(--muted); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sl-subj { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  @media (max-width: 700px) { .sl-mail { grid-template-columns:1fr auto auto; } .sl-from { display:none; } }
+  .sl-progress { background:var(--partly-soft); border-radius:10px; padding:8px 12px; margin-bottom:8px; font-size:14px; }
+  .sl-train { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  .sl-train h4 { margin:0 0 6px; }
+  @media (max-width: 800px) { .sl-train { grid-template-columns:1fr; } }
+  mark { background:color-mix(in srgb, var(--a-career) 55%, transparent); color:inherit; border-radius:3px; padding:0 2px; }
+  .sl-table { width:100%; border-collapse:collapse; font-size:14px; }
+  .sl-table td, .sl-table th { padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  .sl-cell { width:90px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); background:var(--bg); font-family:ui-monospace, Consolas, monospace; }
+  .sl-controls { display:grid; gap:8px; font-size:14px; }
+  .sl-score { display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin:12px 0; }
+  .sl-score div { background:var(--surface-2); border-radius:10px; padding:8px; text-align:center; font-size:12px; }
+  .sl-score b { display:block; font-size:20px; }
+  @media (max-width: 700px) { .sl-score { grid-template-columns:repeat(2, 1fr); } }
+  .sl-bins { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .sl-bins h4 { margin:0 0 6px; }
+  .sl-bin { min-height:120px; max-height:300px; overflow-y:auto; border:1px dashed var(--line); border-radius:10px; padding:6px; display:flex; flex-wrap:wrap; gap:4px; align-content:flex-start; }
+  .sl-chip { font-size:11px; border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:3px 8px; cursor:pointer; animation:slIn .25s ease-out; }
+  .sl-chip.wrong { border:2px solid var(--gap); }
+  @keyframes slIn { from { opacity:0; transform:translateY(-6px); } }
+  @media (prefers-reduced-motion: reduce) { .sl-chip { animation:none; } }
+  .sl-code { display:grid; grid-template-columns:minmax(0, 1.2fr) minmax(0, 1fr); gap:12px; margin-top:10px; align-items:start; }
+  .sl-code pre { margin:0; }
+  .sl-en { background:var(--surface-2); border-radius:10px; padding:10px 12px; font-size:14px; }
+  @media (max-width: 800px) { .sl-code { grid-template-columns:1fr; } }
+  .sl-why { margin-top:10px; } .sl-why p { font-size:14px; margin:6px 0 0; }
+  .sl-why-box { border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:12px; }
+
   /* careers */
   .chip.pick.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .mission .head, .pathway .head { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
@@ -355,6 +390,9 @@
         <div id="step-body"></div>
       </section>
 
+      <!-- ============ SPAM LAB ============ -->
+      <section id="view-spam" class="hidden"></section>
+
       <!-- ============ MY BRAIN ============ -->
       <section id="view-brain" class="hidden">
         <div class="card">
@@ -389,6 +427,7 @@
 
 <script src="/static/vendor/three.min.js"></script>
 <script src="/static/lab.js"></script>
+<script src="/static/spamlab.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -632,6 +671,7 @@ function renderCareers() {
             oninput="whatIf('${c.id}','${w.name}',this.value)"></label>`).join('')}
         <div class="whatif-out" id="wo-${c.id}"><code>${esc(c.output)}</code></div>
         <details><summary>See the code</summary><pre>${esc(c.code)}</pre></details>
+        ${c.mission === 'spam_filter' ? `<div class="row"><button class="btn small" onclick="showView('spam')">Go deeper in the Spam Lab →</button></div>` : ''}
       </div>
       <div><b>Your turn: prove it by hand</b>
         <div class="task">${esc(c.task)}</div>
@@ -653,7 +693,13 @@ function renderCareers() {
       <div class="muted" style="font-size:13px;margin:6px 0">${esc(pw.about)}</div>
       <div class="chips">${pw.needs.map(n => `<span class="tag ${n.level === 'understood' ? 'good' : ''}">${n.level === 'understood' ? '✓ ' : ''}${esc(n.name)}</span>`).join('')}</div>
       <div style="font-size:13px;margin-top:6px"><b>Useful school subjects:</b> ${esc(pw.subjects)}</div></div>`).join('');
-  return picker + missions + none + (mine.length ? `<div class="card"><h3>Your career pathways</h3>
+  const bp = S.brain.concepts['basic-probability'];
+  const spamCard = `<div class="card"><h2>🧪 Spam Lab</h2>
+    <p class="lead" style="margin:0">See exactly how a spam filter (Naive Bayes) works. You do the probability; your colleague runs your maths on 120 emails and shows every line of the code in English and Python.</p>
+    ${bp && bp.level === 'understood'
+      ? `<div class="row"><button class="btn" onclick="showView('spam')">Open the Spam Lab</button>${S.spam && S.spam.proven ? '<span class="tag good">Proven</span>' : ''}</div>`
+      : `<p class="muted" style="font-size:14px;margin:10px 0 0">Unlocks when you master <b>Basic probability</b>: everything in the lab is built from it.</p>`}</div>`;
+  return picker + missions + spamCard + none + (mine.length ? `<div class="card"><h3>Your career pathways</h3>
       <p class="muted" style="margin:0 0 6px;font-size:14px">Each bar fills as you master the Grade 10 maths that career builds on.</p>${paths}</div>` : '');
 }
 
@@ -869,6 +915,8 @@ function drawBrain() {
 
 // ---------------------------------------------------------------- shell
 function showView(v) {
+  $('view-spam').classList.toggle('hidden', v !== 'spam');
+  if (v === 'spam') { window.scrollTo(0, 0); SpamLab.open($('view-spam')); }
   $('view-study').classList.toggle('hidden', v !== 'study');
   $('view-brain').classList.toggle('hidden', v !== 'brain');
   $('tab-study').setAttribute('aria-selected', v === 'study');

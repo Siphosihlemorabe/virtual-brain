@@ -4,7 +4,7 @@ import threading
 import time
 
 from . import brain as brainstore
-from . import learner, recall
+from . import learner, recall, spamlab
 from .agents import Checker, Planner, Reviewer, explain
 from . import career as careers_mod
 from .career import CareerGuide, check_hand_maths, record_proof
@@ -24,6 +24,7 @@ class Session:
         self.recalls = []
         self.round, self.round_plan = 1, []
         self.noticed = []
+        self.spam = {"table_ok": False, "hand_ok": False, "proven": False}
         self.counters = {"reviewer_corrections": 0, "human_interventions": 0}
         self._lock = threading.Lock()
 
@@ -46,7 +47,7 @@ class Session:
                     "brain": self.brain, "careers": self.careers, "recalls": self.recalls,
                     "pathways": careers_mod.pathways(self.brain), "interests": careers_mod.interests(self.brain),
                     "interest_options": careers_mod.catalogue()["interests"],
-                    "learner": learner.view(self.brain), "noticed": self.noticed}
+                    "learner": learner.view(self.brain), "noticed": self.noticed, "spam": self.spam}
 
     def round_ids(self):
         if not self.chapter:
@@ -242,3 +243,77 @@ class Session:
             self.log("Reviewer", "flag", f"Hand maths sent back to the student. {res['msg']}")
         card["result"] = res
         return res
+
+    # ------------------------------------------------------------ Spam Lab: Naive Bayes from basic probability
+
+    @staticmethod
+    def _spam_words(words):
+        words = [w for w in (words or []) if w in spamlab.CANDIDATES]
+        if not 1 <= len(words) <= 5:
+            raise ValueError("Choose between 1 and 5 words for the filter to watch.")
+        return list(dict.fromkeys(words))
+
+    def spam_open(self):
+        self.log("Career guide", "career", "Opening the Spam Lab: a data scientist's Naive Bayes filter, built from the "
+                                           "basic probability you learned, P(E) = n(E) / n(S), used inside each pile of email.")
+
+    def spam_table(self, words, entries):
+        words = self._spam_words(words)
+        self.log("Career guide", "handoff", f"Student filled the probability table for {', '.join(words)}. Handing it to the Reviewer.")
+        res = spamlab.review_table(words, entries)
+        self.spam["table_ok"] = res["all_ok"]
+        if res["all_ok"]:
+            self.log("Reviewer", "recheck", "Every cell of the table matches the counts in the 20 labelled emails.")
+        else:
+            self.log("Reviewer", "flag", f"{len(res['wrong'])} cell(s) do not match the counts: {', '.join(res['wrong'])}. "
+                                         "Sent back with counting hints (not the answers).")
+        self._spam_proof(words)
+        return res
+
+    def spam_hand(self, words, text):
+        words = self._spam_words(words)
+        self.log("Career guide", "handoff", "Student classified one email by hand. Handing it to the Reviewer.")
+        res = spamlab.review_hand(spamlab.HAND_EMAIL, words, text)
+        self.spam["hand_ok"] = res["ok"]
+        self.log("Reviewer", "recheck" if res["ok"] else "flag", res["msg"])
+        self._spam_proof(words)
+        return res
+
+    def _table(self, words, entries, mode):
+        if mode == "smoothed":
+            return spamlab.true_table(words, smoothing=True)
+        table = spamlab.table_from(words, entries)
+        if table is None:
+            raise ValueError("Fill in every cell of your table first (fractions like 7/10).")
+        return table
+
+    def spam_run(self, words, entries, mode, threshold):
+        words = self._spam_words(words)
+        table = self._table(words, entries, mode)
+        res = spamlab.run(words, table, threshold)
+        whose = "the colleague's smoothed table" if mode == "smoothed" else "your table"
+        self.log("Career guide", "info", f"Ran {whose} through the filter code on all {res['total']} emails: "
+                                         f"{res['right']} sorted correctly ({res['accuracy']:.0%}). Caught {res['tally']['caught']} "
+                                         f"spam, missed {res['tally']['missed']}, wrongly blocked {res['tally']['blocked']} normal emails.")
+        if mode != "smoothed":
+            wrong = spamlab.review_table(words, entries)["wrong"]
+            if wrong:
+                self.log("Reviewer", "flag", f"Your table still has wrong cells ({', '.join(wrong)}), so these results are "
+                                             "not what the real counts would give. Fix them and run again.")
+        return res
+
+    def spam_explain(self, email_id, words, entries, mode, threshold):
+        words = self._spam_words(words)
+        return spamlab.explain(email_id, words, self._table(words, entries, mode), threshold)
+
+    def _spam_proof(self, words):
+        if self.spam["table_ok"] and self.spam["hand_ok"] and not self.spam["proven"]:
+            node = self.brain["concepts"].get("basic-probability")
+            if node is not None:
+                record_proof(self.brain, {"concept": "basic-probability", "name": "Data scientist",
+                                          "title": "Naive Bayes spam filter",
+                                          "about": "Builds filters that sort email using probability."})
+                brainstore.save(self.brain)
+            self.spam["proven"] = True
+            self.log("Brain", "update", "Basic probability linked to career: Naive Bayes spam filter → Data scientist "
+                                        "(table and hand maths proven by the Reviewer).")
