@@ -36,11 +36,16 @@ class Planner:
         if not text.strip():
             raise ValueError("The chapter is empty. Paste or upload the chapter you are studying.")
         chapter, how = None, ""
-        try:
-            chapter = self._read_with_model(text, known)
-            how = f"read by language model ({llm.provider()})"
-        except (llm.LLMError, ValueError) as e:
-            self.log(self.name, "warn", f"Model reading failed or was unfaithful ({e}). Falling back to the rule-based reader.")
+        labelled = self._read_with_rules(text)
+        if labelled["concepts"] and (labelled["examples"] or labelled["problems"]):
+            # explicit labels say what is an example and what is an exercise; do not let a model reinterpret them
+            chapter, how = labelled, "read exactly from its labels (Concept / Example / Problem)"
+        else:
+            try:
+                chapter = self._read_with_model(text, known)
+                how = f"read by language model ({llm.provider()})"
+            except (llm.LLMError, ValueError) as e:
+                self.log(self.name, "warn", f"Model reading failed or was unfaithful ({e}). Falling back to the rule-based reader.")
         if chapter is None:
             chapter = self._read_with_rules(text)
             how = "read by rule-based parser"
