@@ -89,13 +89,13 @@ class Tutor:
                                               "The student will not see it.")
         return passed
 
-    def variants(self, chapter: dict, results: dict, topics: list) -> list:
+    def variants(self, chapter: dict, results: dict, topics: list, brain=None):
         """A new round: the Planner picks concepts and forms, the Tutor writes, the Reviewer checks.
         Returns the ids of the new problems and the Planner's round plan."""
         tried = {}
         for p in chapter["problems"]:
             tried.setdefault(p["concept"], set()).add(p.get("form", "word"))
-        plan = plan_round(chapter, results, tried, self.log)
+        plan = plan_round(chapter, results, tried, self.log, brain)
         if not plan:
             return [], plan
         fmt_rules = FORMAT.format(topics=topics)
@@ -148,7 +148,7 @@ class Tutor:
                 chapter["problems"].append({"id": next_id("P", chapter["problems"]), "concept": it["concept"],
                                             "question": it["question"], "solution": it["solution"], "source": "tutor",
                                             "form": it.get("form", "word"), "visual": it.get("visual"),
-                                            "round": it.get("round", 1)})
+                                            "round": it.get("round", 1), "plant": it.get("plant")})
         chapter["examples"].sort(key=lambda e: (e["concept"], e["id"]))
 
 

@@ -28,6 +28,20 @@ The language model reads text, writes material (checked in code before use) and 
    **Practise again in a new way:** the Planner reads this round's results and chooses new forms for each concept (word problem, table, Venn diagram, list the outcomes, spot the mistake, work backwards, on the job). Weak concepts get two new forms, and understood ones get a stretch question. The Tutor writes them, and the Reviewer checks every question and its diagram or table before the student sees it. A spot-the-mistake question must really contain a mistake. The brain updates from the newest round, so a gap can become understood.
 5. **Real world.** Mastered concepts unlock a career link with real code and a by-hand proof.
 
+## How the brain learns the student
+
+Besides concept levels and notes, the brain keeps a learner model (`app/learner.py`). Every finding is detected in code from marked work, keeps its evidence (which question, which chapter), counts each question only once, and is acted on only after it has been seen twice:
+
+| Finding | Detected when | What the colleague then does |
+|---|---|---|
+| Solves problems their own valid way | The Reviewer proves an answer right that did not follow the memo | The Checker accepts any valid method from the start |
+| Works steps out in their head | The same, with fewer lines than the memo | The same |
+| Thinks visually | Working mentions a diagram, table or list | The Planner rebuilds weak concepts with visual forms |
+| Recurring mistake (multiplies instead of adds, miscounts outcomes, wrong total, wrong value, arithmetic slip) | The first wrong step is classified by comparing it with the memo | The Planner plants that exact mistake in a spot-the-mistake question, and the Reviewer checks that the planted mistake really is that type |
+| What works | Results for each practice form | The Planner prefers forms that worked to rebuild weak concepts |
+
+Feedback is also tailored to the profile. **My brain → How you learn** shows every finding, its evidence and its effect.
+
 The side panel "Your colleague at work" shows every agent action, every Reviewer correction and the human-intervention counter.
 
 ## Agents
@@ -50,7 +64,8 @@ Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/
 3. Choose **Probability (with worked solutions)**, fill the sample answers, then check. P2 (a Venn-diagram method) is **flagged**, **fixed** and **re-checked**.
 4. **Real world:** check the sample hand maths (the Reviewer finds 1/16 should be 1/32), then the corrected version. The Data scientist node appears in **My brain**.
 5. On Results, click **Practise again in a new way**. The Planner's reasons appear above round 2, which uses diagrams, tables and spot-the-mistake questions. Answer them correctly and Complementary events moves from gap to understood.
-6. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
+6. Keep going for another round. The like-terms mistake from algebra and geometry is planted in a spot-the-mistake question. Once the Reviewer has proven the student's short answers right twice, the Checker announces that it now accepts their methods, and the corrections stop. Open **My brain → How you learn**.
+7. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
 
 ## Using your own data
 

@@ -144,6 +144,18 @@
   .venn .lbl { font:700 13px system-ui; fill:var(--ink); } .venn .num { font:800 20px system-ui; fill:var(--ink); }
   .venn .num.small { font:600 13px system-ui; fill:var(--muted); }
 
+  /* learner model */
+  .tag.good { background:var(--ok-soft); color:var(--ok); } .tag.warn { background:var(--partly-soft); color:var(--partly); }
+  .finding { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-top:8px; }
+  .finding.pending { opacity:.7; border-style:dashed; }
+  .finding .head { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+  .finding .effect { font-size:14px; margin:4px 0; }
+  .notice { padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; } .notice:last-of-type { border-bottom:0; }
+  .formbar { display:grid; grid-template-columns:140px 1fr 44px; gap:10px; align-items:center; font-size:14px; margin:6px 0; }
+  .bar { height:10px; border-radius:6px; background:var(--surface-2); overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--ok); }
+  .ev.learn { background:color-mix(in srgb, var(--a-brain) 12%, transparent); }
+
   /* careers */
   .chain { font-weight:800; color:var(--accent); margin-bottom:8px; }
   .career-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
@@ -172,7 +184,7 @@
   .ev .who { font-weight:700; } .ev .t { color:var(--muted); font-size:11px; margin-left:6px; }
   .ev.flag { background:var(--gap-soft); } .ev.fix { background:var(--ok-soft); } .ev.recheck { background:color-mix(in srgb, var(--a-checker) 10%, transparent); }
   .ev.plan, .ev.reason { background:var(--accent-soft); } .ev.error { background:var(--gap-soft); } .ev.handoff { color:var(--muted); }
-  .ev.flag .kind, .ev.fix .kind, .ev.recheck .kind { font-size:10px; font-weight:800; letter-spacing:.05em; margin-right:4px; }
+  .ev.flag .kind, .ev.fix .kind, .ev.recheck .kind, .ev.learn .kind { font-size:10px; font-weight:800; letter-spacing:.05em; margin-right:4px; }
 </style>
 </head>
 <body>
@@ -204,6 +216,11 @@
           <svg id="map" role="img" aria-label="Map of your concepts"></svg>
           <div id="detail" class="muted">Tap a topic to see its history, your notes and careers.</div>
           <div class="row"><button class="btn ghost small" id="reset">Reset brain</button></div>
+        </div>
+        <div class="card">
+          <h2>How you learn</h2>
+          <p class="lead">What your colleague has noticed from your marked work. Each finding lists its evidence and what your colleague now does differently because of it.</p>
+          <div id="learner"></div>
         </div>
       </section>
     </div>
@@ -272,7 +289,7 @@ function onStage(stage, prev) {
 function addEvent(e) {
   const div = document.createElement('div');
   div.className = 'ev ' + e.kind;
-  const kind = { flag: 'FLAG', fix: 'FIX', recheck: 'RE-CHECK' }[e.kind];
+  const kind = { flag: 'FLAG', fix: 'FIX', recheck: 'RE-CHECK', learn: 'LEARNED' }[e.kind];
   div.innerHTML = `<span class="dot" style="background:var(${AGENT_COLOR[e.agent] || '--a-orch'})"></span>
     <div><span class="who" style="color:var(${AGENT_COLOR[e.agent] || '--a-orch'})">${esc(e.agent)}</span><span class="t">${e.t}</span><br>
     ${kind ? `<span class="kind">${kind}</span>` : ''}${esc(e.msg)}</div>`;
@@ -295,7 +312,7 @@ function render() {
   $('stepper').innerHTML = STEPS.map((t, i) => `<button ${i > max ? 'disabled' : ''} ${i === step ? 'aria-current="step"' : ''}
       class="${i < step ? 'done' : ''}" onclick="goStep(${i})"><span class="n">Step ${i + 1}</span><span class="t">${t}</span></button>`).join('');
   const key = [step, S.stage, S.round, S.chapter && S.chapter.problems.map(p => p.id).join(), JSON.stringify(S.results),
-               JSON.stringify(S.recalls), JSON.stringify(S.careers.map(c => [c.concept, c.result && c.result.msg])), S.error].join('|');
+               JSON.stringify(S.recalls), JSON.stringify(S.noticed), JSON.stringify(S.careers.map(c => [c.concept, c.result && c.result.msg])), S.error].join('|');
   if (key === renderedKey && !['preparing', 'checking', 'designing'].includes(S.stage)) return;
   renderedKey = key;
   const body = $('step-body');
@@ -373,7 +390,7 @@ function renderPractise() {
   }
   const byConcept = Object.fromEntries(ch.concepts.map(c => [c.id, c.name]));
   const why = S.round > 1 && S.round_plan.length ? `<ul class="plan">${S.round_plan.map(r =>
-      `<li><b>${esc(byConcept[r.concept] || r.concept)}</b> as ${r.forms.map(f => esc(FORM_LABEL[f] || f)).join(' + ')}${r.why ? ` <span class="muted">· ${esc(r.why)}</span>` : ''}</li>`).join('')}</ul>` : '';
+      `<li><b>${esc(byConcept[r.concept] || r.concept)}</b> as ${r.forms.map(f => esc(FORM_LABEL[f] || f)).join(' + ')}${r.why ? ` <span class="muted">· ${esc(r.why)}</span>` : ''}${r.plant ? ` <span class="tag warn">planted: your recurring mistake</span>` : ''}</li>`).join('')}</ul>` : '';
   return `<div class="card"><h2>Practise${S.round > 1 ? ` · round ${S.round}` : ''}</h2>
       <p class="lead" style="margin:0">${S.round > 1 ? 'Same ideas, new angles. Your colleague chose these from your last results:' :
         'Show your working, one step per line, like <code>P(red) = 3/10</code>. Any correct method counts, not just the textbook\'s.'}</p>
@@ -415,6 +432,10 @@ function renderResults() {
   return `<div class="summary"><div><b style="color:var(--ok)">${count('understood')}</b>understood</div>
       <div><b style="color:var(--partly)">${count('partly')}</b>partly</div><div><b style="color:var(--gap)">${count('gap')}</b>gaps</div></div>
     ${recalls ? `<div class="card"><h3>What to do next</h3>${recalls}</div>` : ''}
+    ${S.noticed.length ? `<div class="card"><h3>What your colleague noticed</h3>${S.noticed.map(n => `<div class="notice">
+        <span class="tag ${n.kind === 'mistakes' ? 'warn' : 'good'}">${n.kind === 'mistakes' ? 'Mistake pattern' : 'How you think'}</span>
+        ${esc(n.label)} <span class="muted">· ${esc(n.where)} · ${n.confirmed ? `<b>confirmed (${n.count}×), your colleague will act on it</b>` : 'seen once, watching for it'}</span></div>`).join('')}
+        <div class="row" style="margin-top:8px"><button class="btn ghost small" onclick="showView('brain')">See how you learn →</button></div></div>` : ''}
     ${cards}
     <div class="row"><button class="btn" onclick="nextRound()">Practise again in a new way</button>
       <button class="btn ghost" onclick="goStep(2)">Retry these questions</button>
@@ -535,8 +556,28 @@ async function checkHand(concept) {
 function alertBox(msg) { S.error = msg; renderedKey = ''; render(); }
 
 // ---------------------------------------------------------------- brain map
+function drawLearner() {
+  const L = S.learner, box = $('learner');
+  const item = (x, warn) => `<div class="finding ${x.confirmed ? '' : 'pending'}">
+      <div class="head"><b>${esc(x.label)}</b>
+        <span class="tag ${x.confirmed ? (warn ? 'warn' : 'good') : ''}">${x.confirmed ? `confirmed · seen ${x.count}×` : `seen ${x.count}× · needs ${L.confirm}`}</span></div>
+      <div class="effect">${x.confirmed ? '→ ' : 'Once confirmed: '}${esc(x.effect)}</div>
+      <div class="muted" style="font-size:12px">Evidence: ${x.evidence.map(e => esc(e.where)).join('; ')}</div></div>`;
+  const forms = L.forms.filter(f => f.tried).sort((a, b) => b.understood / b.tried - a.understood / a.tried);
+  box.innerHTML = (!L.traits.length && !L.mistakes.length && !forms.length)
+    ? '<p class="muted">Nothing yet. Check some practice and your colleague will start learning how you think.</p>'
+    : `<h3>How you think</h3>${L.traits.map(x => item(x, false)).join('') || '<p class="muted">Nothing confirmed yet.</p>'}
+       <h3 style="margin-top:14px">Mistakes you tend to make</h3>${L.mistakes.map(x => item(x, true)).join('') || '<p class="muted">None found yet.</p>'}
+       <h3 style="margin-top:14px">What works for you</h3>
+       ${forms.map(f => `<div class="formbar"><span>${esc(FORM_LABEL[f.form] || f.form)}</span>
+         <div class="bar"><i style="width:${Math.round(100 * f.understood / f.tried)}%"></i></div>
+         <span class="muted">${f.understood}/${f.tried}</span></div>`).join('')}
+       <div class="muted" style="font-size:12px;margin-top:6px">→ The Planner rebuilds weak concepts with the formats that work best for you.</div>`;
+}
+
 function drawBrain() {
   if (!S) return;
+  drawLearner();
   const C = S.brain.concepts, keys = Object.keys(C), depth = {};
   const d = k => depth[k] ?? (depth[k] = 1 + Math.max(-1, ...(C[k].builds_on || []).filter(b => C[b]).map(d)));
   keys.forEach(d);

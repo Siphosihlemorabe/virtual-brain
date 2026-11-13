@@ -2,7 +2,7 @@
 which forms, why); the Tutor writes the questions; the Reviewer checks them, including their visuals."""
 from fractions import Fraction
 
-from . import llm
+from . import learner, llm
 from .mathcheck import parse_steps
 
 # form -> (what the Tutor must write, which visual it must include)
@@ -23,6 +23,7 @@ FORMS = {
 LABELS = {"word": "Word problem", "table": "Read the table", "venn": "Venn diagram", "sample_space": "List the outcomes",
           "spot_mistake": "Spot the mistake", "reverse": "Work backwards", "career": "On the job"}
 STRETCH = ["spot_mistake", "reverse", "career"]
+VISUAL_FORMS = learner.VISUAL_FORMS
 
 
 def blind_text(it: dict) -> str:
@@ -69,10 +70,15 @@ def visual_problem(it: dict, answer: Fraction):
             return "the flawed working has no calculation to inspect"
         if flawed[-1].value == answer and all(s.consistent for s in flawed):
             return "the 'mistake' version reaches the right answer with no error, so there is nothing to spot"
+        if it.get("plant"):
+            got = learner.classify_mistake(it["solution"], v.get("flawed") or [])
+            if not got or got[0] != it["plant"]:
+                return (f"the flawed working was meant to show '{learner.MISTAKES[it['plant']]}', but it shows "
+                        f"{'no recognisable mistake' if not got else repr(learner.MISTAKES[got[0]])}")
     return None
 
 
-def plan_round(chapter: dict, results: dict, tried: dict, log) -> list:
+def plan_round(chapter: dict, results: dict, tried: dict, log, brain=None) -> list:
     """Planner: choose concepts and forms for the next round. Model proposes, code validates and repairs."""
     levels = {}
     for pid, r in results.items():
@@ -82,6 +88,9 @@ def plan_round(chapter: dict, results: dict, tried: dict, log) -> list:
     concepts = {c["id"]: c for c in chapter["concepts"]}
     summary = [(cid, concepts[cid]["name"], levels.get(cid, "not practised"), sorted(tried.get(cid, [])))
                for cid in concepts]
+    brain = brain or {}
+    recurring = learner.recurring_mistakes(brain)
+    record = learner.form_record(brain)
     proposal, reasoning = None, ""
     try:
         data = llm.complete_json(
@@ -90,7 +99,12 @@ def plan_round(chapter: dict, results: dict, tried: dict, log) -> list:
             "form (spot_mistake, reverse or career) to challenge their reasoning. Prefer forms not tried yet, and only "
             "forms that suit the concept (e.g. venn suits overlapping events).\n"
             f"Forms: {list(FORMS)}\nConcepts (id, name, level, forms tried): {summary}\n"
-            'Return {"reasoning":"two sentences","round":[{"concept":"C1","forms":["venn"],"why":"short"}]}')
+            f"What the brain knows about how this learner learns: {learner.summary(brain)}\n"
+            "Use it: rebuild weak concepts with forms that have worked for this learner. If a recurring mistake "
+            "fits a concept, add a spot_mistake for it and set plant to that mistake's key "
+            f"(recurring mistake keys: {[k for k, _, _ in recurring]}).\n"
+            'Return {"reasoning":"two sentences","round":[{"concept":"C1","forms":["venn"],"plant":"key or null",'
+            '"why":"short"}]}')
         proposal, reasoning = data.get("round"), data.get("reasoning", "")
     except (llm.LLMError, AttributeError) as e:
         log("Planner", "warn", f"Model planning unavailable ({e}). Using rule-based round.")
@@ -100,29 +114,40 @@ def plan_round(chapter: dict, results: dict, tried: dict, log) -> list:
         cid = p.get("concept")
         forms = [f for f in p.get("forms", []) if f in FORMS][:2]
         if cid in concepts and forms and cid not in {x["concept"] for x in plan}:
-            plan.append({"concept": cid, "forms": forms, "why": p.get("why", "")})
+            plant = p.get("plant") if p.get("plant") in {k for k, _, _ in recurring} and "spot_mistake" in forms else None
+            plan.append({"concept": cid, "forms": forms, "why": p.get("why", ""), "plant": plant})
     for cid in concepts:  # repair: every weak concept must be practised again
         if levels.get(cid) in ("gap", "partly") and cid not in {x["concept"] for x in plan}:
             fresh = [f for f in FORMS if f not in tried.get(cid, set())] or list(FORMS)
-            plan.append({"concept": cid, "forms": fresh[:2],
+            # forms that have worked for this learner first (visual ones for a visual thinker)
+            fresh.sort(key=lambda f: (-(record.get(f, (0, 1))[0] / max(record.get(f, (0, 1))[1], 1)),
+                                      0 if learner.is_visual(brain) and f in VISUAL_FORMS else 1))
+            plan.append({"concept": cid, "forms": fresh[:2], "plant": None,
                          "why": "added by orchestrator: weak concepts always get another round"})
     if proposal is None:  # rule-based stretch for understood concepts
         for cid in concepts:
             if levels.get(cid) == "understood":
                 fresh = [f for f in STRETCH if f not in tried.get(cid, set())] or STRETCH
-                plan.append({"concept": cid, "forms": fresh[:1], "why": "understood, so a stretch question"})
+                plan.append({"concept": cid, "forms": fresh[:1], "plant": None, "why": "understood, so a stretch question"})
     if reasoning:
         log("Planner", "reason", reasoning)
     log("Planner", "plan", "Next round: " + "; ".join(
-        f"{concepts[p['concept']]['name']} as {' + '.join(LABELS[f] for f in p['forms'])} ({p['why']})" for p in plan),
-        {"round": plan})
+        f"{concepts[p['concept']]['name']} as {' + '.join(LABELS[f] for f in p['forms'])} ({p['why']})"
+        + (f" [planting your recurring mistake: {learner.MISTAKES[p['plant']]}]" if p.get("plant") else "")
+        for p in plan), {"round": plan})
     return plan
 
 
 def write_variants(chapter: dict, plan: list, topics: list, fmt_rules: str, log) -> list:
     """Tutor: one question per (concept, form) in the plan. Returns raw items for the Reviewer."""
     concepts = {c["id"]: c for c in chapter["concepts"]}
-    asks = [(p["concept"], concepts[p["concept"]]["name"], f, FORMS[f][0], FORMS[f][1]) for p in plan for f in p["forms"]]
+    def meaning(f, p):
+        if f == "spot_mistake" and p.get("plant"):
+            return FORMS[f][0] + f". The ONE mistake must be this kind: {learner.MISTAKES[p['plant']]}"
+        return FORMS[f][0]
+
+    asks = [(p["concept"], concepts[p["concept"]]["name"], f, meaning(f, p), FORMS[f][1]) for p in plan for f in p["forms"]]
+    plants = {(p["concept"], "spot_mistake"): p["plant"] for p in plan if p.get("plant")}
     seen = [p["question"] for p in chapter["problems"]]
     try:
         data = llm.complete_json(
@@ -141,7 +166,8 @@ def write_variants(chapter: dict, plan: list, topics: list, fmt_rules: str, log)
     for p in data.get("problems", []) if isinstance(data, dict) else []:
         if (p.get("concept"), p.get("form")) in wanted:
             out.append({"kind": "problem", "concept": p["concept"], "form": p["form"], "question": p.get("question", ""),
-                        "visual": p.get("visual"), "solution": p.get("solution") or []})
+                        "visual": p.get("visual"), "solution": p.get("solution") or [],
+                        "plant": plants.get((p["concept"], p["form"]))})
     log("Tutor", "info", f"Wrote {len(out)} new questions: "
                          + ", ".join(LABELS[i["form"]] for i in out) + ". Handing them to the Reviewer.")
     return out

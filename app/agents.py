@@ -62,7 +62,7 @@ class Planner:
             "A worked example is a question the chapter solves for the reader. An exercise is a question for the "
             "student; if the chapter gives its solution or memo, include it, otherwise use an empty list. "
             "If the chapter only explains and has no questions, return empty lists. Never invent questions or solutions.\n"
-            'Return {"subject":"...","concepts":[{"id":"C1","name":"...","summary":"one sentence",'
+            'Return {"subject":"the chapter topic, e.g. Probability","concepts":[{"id":"C1","name":"...","summary":"one sentence",'
             '"brain_key":"key or null","builds_on":["key"]}],'
             '"examples":[{"id":"E1","concept":"C1","question":"...","solution":["one calculation per line"]}],'
             '"problems":[{"id":"P1","concept":"C1","question":"...","solution":[]}]}.\n'
@@ -294,14 +294,16 @@ class Reviewer:
         return {"agree": False, "own": own, "reason": reason}
 
 
-def explain(problem: dict, student_lines: list, mark: dict, log) -> str:
+def explain(problem: dict, student_lines: list, mark: dict, log, profile: str = "") -> str:
     """Student-friendly feedback. The model only words it; the mark and step are already decided."""
     try:
         text = llm.complete(
             "You are a kind Grade 10 maths tutor. In at most two short sentences, tell the student what went "
             "wrong and what to revise. Do not give a different answer or step than the one stated.\n"
             f"Question: {problem['question']}\nTextbook solution: {problem['solution']}\n"
-            f"Student's working: {student_lines}\nVerified finding: {mark['detail']}", timeout=60).strip()
+            f"Student's working: {student_lines}\nVerified finding: {mark['detail']}\n"
+            f"How this student learns (use it to pitch the advice, e.g. suggest a diagram to a visual thinker or "
+            f"name a mistake they keep making): {profile or 'unknown yet'}", timeout=60).strip()
         if text:
             log("Checker", "info", f"Feedback for {problem['id']}: {text}")
             return f"{mark['detail']} {text}"

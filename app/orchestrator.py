@@ -4,7 +4,7 @@ import threading
 import time
 
 from . import brain as brainstore
-from . import recall
+from . import learner, recall
 from .agents import Checker, Planner, Reviewer, explain
 from .career import CareerGuide, check_hand_maths, record_proof
 from .mathcheck import fmt
@@ -22,6 +22,7 @@ class Session:
         self.careers = []
         self.recalls = []
         self.round, self.round_plan = 1, []
+        self.noticed = []
         self.counters = {"reviewer_corrections": 0, "human_interventions": 0}
         self._lock = threading.Lock()
 
@@ -41,7 +42,8 @@ class Session:
             return {"stage": self.stage, "error": self.error, "events": self.events[since:],
                     "round": self.round, "round_plan": self.round_plan, "round_ids": self.round_ids(),
                     "chapter": chapter, "results": self.results, "counters": self.counters,
-                    "brain": self.brain, "careers": self.careers, "recalls": self.recalls}
+                    "brain": self.brain, "careers": self.careers, "recalls": self.recalls,
+                    "learner": learner.view(self.brain), "noticed": self.noticed}
 
     def round_ids(self):
         if not self.chapter:
@@ -95,9 +97,9 @@ class Session:
              "wrong_level": ({"align": "label"}, "match steps by what they calculate, not by position")}
     MAX_ROUNDS = 2
 
-    def mark_and_review(self, p, lines, checker, reviewer):
+    def mark_and_review(self, p, lines, checker, reviewer, trust_methods=False):
         pid = p["id"]
-        mark = checker.check(p, lines)
+        mark = checker.check(p, lines, accept_alternative=trust_methods)
         first = dict(mark)
         self.log("Checker", "mark", f"{pid}: {mark['level'].upper()}. {mark['detail']}", {"problem": pid, **mark})
         self.log("Checker", "handoff", f"Handing {pid} to the Reviewer.")
@@ -126,7 +128,7 @@ class Session:
                                           "Escalating to the teacher; the mark is held as the Reviewer's verdict.")
             mark = {"level": own["level"], "step": own["step"], "detail": own.get("why", "")}
         if mark["level"] != "understood":
-            mark["detail"] = explain(p, lines, mark, self.log)
+            mark["detail"] = explain(p, lines, mark, self.log, learner.summary(self.brain))
         self.results[pid] = {"concept": p["concept"], "checker": first, **mark}
 
     def check(self, answers: dict, notes: dict):
@@ -142,18 +144,25 @@ class Session:
             if not work:
                 raise ValueError("I could not find any working to check. Write your calculations in the answer boxes.")
             plan = planner.plan(chapter, work, known)
+            trust = learner.accepts_own_methods(self.brain)
+            if trust:
+                self.log("Checker", "learn", f"Your brain shows the Reviewer has proven your own or shortened methods right "
+                                             f"{trust} times, so I now accept any valid method from the start. "
+                                             "The Reviewer still checks every mark.")
             by_id = {p["id"]: p for p in chapter["problems"]}
             for step in plan:
                 p = by_id[step["target"]]
                 if step["action"] == "ask_student":
                     self.log("Planner", "ask", f"{p['id']} not attempted yet. It stays open for you.")
                     continue
-                self.mark_and_review(p, work[p["id"]], checker, reviewer)
+                self.mark_and_review(p, work[p["id"]], checker, reviewer, bool(trust))
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
             note_text = "\n".join(f"{cid}: {line}" for cid, txt in notes.items() for line in str(txt).splitlines()
                                   if line.strip())
             latest = self.round_results()
             keymap = brainstore.update(self.brain, chapter, latest, note_text, self.log)
+            self.noticed = learner.observe(self.brain, chapter, latest, work, keymap, self.log)
+            brainstore.save(self.brain)
             self.recalls = []
             if any(r["level"] in ("gap", "partly") for r in latest.values()):
                 self.log("Planner", "reason", "Some problems are not yet understood, so before moving on I am asking "
@@ -176,7 +185,7 @@ class Session:
             if not latest:
                 raise ValueError("Check this round first, so I know what to practise next.")
             self.log("Orchestrator", "handoff", "Student asked to practise again. Handing their results to the Planner.")
-            ids, plan = Tutor(self.log, self.counters).variants(self.chapter, latest, self._topics())
+            ids, plan = Tutor(self.log, self.counters).variants(self.chapter, latest, self._topics(), self.brain)
             if not ids:
                 raise ValueError("I could not prepare a new round I trust. Try again in a moment.")
             self.round, self.round_plan = self.round + 1, plan
