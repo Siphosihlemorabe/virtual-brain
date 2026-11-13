@@ -1,0 +1,2 @@
+C2: I like drawing a Venn diagram first so I don't count the overlap twice.
+C3: "Not A" means 1 minus P(A).

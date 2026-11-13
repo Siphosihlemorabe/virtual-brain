@@ -2,6 +2,7 @@
 import threading
 import time
 
+from . import brain as brainstore
 from .agents import Checker, Planner, Reviewer, explain
 from .mathcheck import fmt
 
@@ -13,6 +14,7 @@ class Run:
         self.results = {}
         self.concepts = []
         self.problems = []
+        self.brain = brainstore.load()
         self.counters = {"reviewer_corrections": 0, "human_interventions": 0}
         self._lock = threading.Lock()
 
@@ -24,7 +26,8 @@ class Run:
     def snapshot(self, since=0):
         with self._lock:
             return {"status": self.status, "events": self.events[since:], "results": self.results,
-                    "concepts": self.concepts, "problems": self.problems, "counters": self.counters}
+                    "concepts": self.concepts, "problems": self.problems, "counters": self.counters,
+                    "brain": self.brain}
 
     # Policy the Checker switches to when the Reviewer sends a mark back, by the Reviewer's reason.
     FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "accept any valid method, not only the textbook's"),
@@ -66,16 +69,17 @@ class Run:
             mark["detail"] = explain(p, lines, mark, self.log)
         self.results[pid] = {"concept": p["concept"], "checker": first, **mark}
 
-    def execute(self, chapter_text, working_text):
+    def execute(self, chapter_text, working_text, notes_text=""):
         self.status = "running"
         try:
             planner, checker, reviewer = Planner(self.log), Checker(self.log), Reviewer(self.log)
             self.log("Orchestrator", "info", "Goal received: chapter → proven understanding → career application.")
-            chapter = planner.read_chapter(chapter_text)
+            known = brainstore.summary(self.brain)
+            chapter = planner.read_chapter(chapter_text, known)
             self.concepts, self.problems = chapter["concepts"], chapter["problems"]
             self.log("Planner", "handoff", "Handing the chapter to the Checker to read the student's working.")
             work = checker.read_working(working_text, chapter)
-            plan = planner.plan(chapter, work)
+            plan = planner.plan(chapter, work, known)
             by_id = {p["id"]: p for p in chapter["problems"]}
             for step in plan:
                 p = by_id[step["target"]]
@@ -85,6 +89,8 @@ class Run:
                     self.log("Planner", "ask", f"{p['id']} not attempted. Asking the student: {p['question']}")
                     continue
                 self.mark_and_review(p, work[p["id"]], checker, reviewer)
+            self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
+            brainstore.update(self.brain, chapter, self.results, notes_text, self.log)
             self.log("Orchestrator", "done", "Run complete.")
             self.status = "done"
         except ValueError as e:

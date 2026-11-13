@@ -34,6 +34,10 @@
   .pill { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
   .gap { background:var(--gap); } .partly { background:var(--partly); } .understood { background:var(--ok); } .na { background:#999; }
   .muted { color:var(--muted); } s { color:var(--muted); }
+  #map { width:100%; display:block; margin:8px 0; }
+  #map .node { cursor:pointer; } #map text { font-size:11px; fill:#fff; font-weight:600; pointer-events:none; }
+  #map line { stroke:#b9b5ad; stroke-width:1.5; }
+  .legend .pill { font-size:11px; }
 </style>
 </head>
 <body>
@@ -47,8 +51,11 @@
     <label for="working">Student's working</label>
     <textarea id="working" placeholder="Paste the student's working, or choose a .txt file"></textarea>
     <input type="file" accept=".txt" data-target="working">
+    <label for="notes">Your own notes (optional, start a line with C1: to attach it to a concept)</label>
+    <textarea id="notes" style="height:60px" placeholder="e.g. C2: I draw a Venn diagram first"></textarea>
     <div class="row">
       <button class="secondary" id="sample">Load sample (probability)</button>
+      <button class="secondary" id="retry">Load improved working</button>
       <button id="run">Run agents</button>
       <span id="status" class="muted"></span>
     </div>
@@ -70,8 +77,11 @@
   </section>
 
   <section class="card">
-    <h2>4. Concepts in this chapter</h2>
-    <div id="concepts" class="muted">Run the agents to build the concept map.</div>
+    <h2>4. Virtual brain <button class="secondary" id="reset" style="float:right;padding:3px 10px;font-size:12px">Reset brain</button></h2>
+    <div class="legend muted"><span class="pill understood">understood</span> <span class="pill partly">partly</span>
+      <span class="pill gap">gap</span> <span class="pill na">not yet seen</span> · arrows point from a topic to what builds on it · click a topic</div>
+    <svg id="map" role="img" aria-label="Concept map"></svg>
+    <div id="detail" class="muted">Click a topic to see its history and your notes.</div>
   </section>
 </main>
 <script>
@@ -85,12 +95,24 @@ document.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListene
 $('sample').onclick = async () => {
   $('chapter').value = await (await fetch('/api/sample/chapter')).text();
   $('working').value = await (await fetch('/api/sample/working')).text();
+  $('notes').value = await (await fetch('/api/sample/notes')).text();
+};
+$('retry').onclick = async () => {
+  $('chapter').value = await (await fetch('/api/sample/chapter')).text();
+  $('working').value = await (await fetch('/api/sample/working_retry')).text();
+  $('notes').value = '';
+};
+$('reset').onclick = async () => {
+  const r = await fetch('/api/brain/reset', { method: 'POST' });
+  if (!r.ok) { $('status').textContent = (await r.json()).detail; return; }
+  selected = null; poll();
 };
 
 $('run').onclick = async () => {
   const body = new FormData();
   body.append('chapter', $('chapter').value);
   body.append('working', $('working').value);
+  body.append('notes', $('notes').value);
   const r = await fetch('/api/run', { method: 'POST', body });
   if (!r.ok) { $('status').textContent = (await r.json()).detail || 'Could not start'; return; }
   since = 0; $('log').innerHTML = ''; $('results').innerHTML = '';
@@ -120,9 +142,43 @@ async function poll() {
     const prev = r.checker && r.checker.level !== r.level ? `<s>${esc(r.checker.level)}</s> → ` : '';
     return `<tr><td>${id}</td><td>${esc(names[r.concept] || r.concept)}</td><td>${prev}${pill(r.level)}</td><td>${esc(r.detail)}</td></tr>`;
   }).join('');
-  if (s.concepts.length) $('concepts').innerHTML = '<ul>' + s.concepts.map(c =>
-    `<li><b>${esc(c.id)} ${esc(c.name)}</b> <span class="muted">${esc(c.summary)}</span></li>`).join('') + '</ul>';
+  drawBrain(s.brain);
   if (s.status !== 'running') { clearInterval(timer); $('run').disabled = false; }
+}
+let selected = null, lastBrain = null;
+function drawBrain(brain) {
+  lastBrain = brain;
+  const C = brain.concepts, keys = Object.keys(C);
+  const depth = {};
+  const d = k => depth[k] ?? (depth[k] = 1 + Math.max(-1, ...(C[k].builds_on || []).filter(b => C[b]).map(d)));
+  keys.forEach(d);
+  const cols = {}; keys.forEach(k => (cols[depth[k]] = cols[depth[k]] || []).push(k));
+  const W = 150, H = 34, GX = 40, GY = 14, nCols = Object.keys(cols).length;
+  const rows = Math.max(...Object.values(cols).map(c => c.length));
+  const pos = {};
+  Object.entries(cols).forEach(([c, ks]) => ks.forEach((k, i) => pos[k] = { x: c * (W + GX), y: i * (H + GY) }));
+  const svg = $('map');
+  svg.setAttribute('viewBox', `-4 -4 ${nCols * (W + GX) - GX + 8} ${rows * (H + GY) - GY + 8}`);
+  const color = l => ({ understood: 'var(--ok)', partly: 'var(--partly)', gap: 'var(--gap)' }[l] || '#9a9a9a');
+  let out = '';
+  keys.forEach(k => (C[k].builds_on || []).filter(b => pos[b]).forEach(b =>
+    out += `<line x1="${pos[b].x + W}" y1="${pos[b].y + H / 2}" x2="${pos[k].x}" y2="${pos[k].y + H / 2}" marker-end="url(#arr)"/>`));
+  keys.forEach(k => {
+    const n = C[k], p = pos[k], name = n.name.length > 24 ? n.name.slice(0, 23) + '…' : n.name;
+    out += `<g class="node" data-k="${esc(k)}"><rect x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="8" fill="${color(n.level)}"
+      stroke="${k === selected ? '#1d1d1f' : 'none'}" stroke-width="2"/><title>${esc(n.name)}</title>
+      <text x="${p.x + 8}" y="${p.y + 21}">${esc(name)}</text></g>`;
+  });
+  svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0,0 L10,5 L0,10 z" fill="#b9b5ad"/></marker></defs>` + out;
+  svg.querySelectorAll('.node').forEach(g => g.onclick = () => { selected = g.dataset.k; drawBrain(lastBrain); });
+  if (selected && C[selected]) {
+    const n = C[selected];
+    const hist = n.history.map(h => `${esc(h.when)}: ${pill(h.level)} from ${esc(h.from.join(', '))}`).join('<br>') || 'No evidence yet.';
+    const notes = n.notes.map(x => `“${esc(x.text)}” <span class="muted">(${esc(x.when)})</span>`).join('<br>') || 'No notes yet.';
+    const deps = (n.builds_on || []).map(b => esc(C[b]?.name || b)).join(', ') || 'nothing';
+    $('detail').innerHTML = `<b>${esc(n.name)}</b> · builds on ${deps}<br><b>History</b><br>${hist}<br><b>Your notes</b><br>${notes}`;
+  }
 }
 poll();
 </script>

@@ -27,12 +27,12 @@ class Planner:
     def __init__(self, log):
         self.log = log
 
-    def read_chapter(self, text: str) -> dict:
+    def read_chapter(self, text: str, known=()) -> dict:
         if not text.strip():
             raise ValueError("The chapter is empty. Upload a chapter with at least one worked example.")
         chapter, how = None, ""
         try:
-            chapter = self._read_with_model(text)
+            chapter = self._read_with_model(text, known)
             how = f"read by language model ({llm.provider()})"
         except (llm.LLMError, ValueError) as e:
             self.log(self.name, "warn", f"Model reading failed or was unfaithful ({e}). Falling back to the rule-based reader.")
@@ -45,10 +45,14 @@ class Planner:
                  {"concepts": chapter["concepts"]})
         return chapter
 
-    def _read_with_model(self, text: str) -> dict:
+    def _read_with_model(self, text: str, known) -> dict:
         data = llm.complete_json(
             "Read this Grade 10 maths textbook chapter. Split it into concepts and practice problems.\n"
-            'Return {"concepts":[{"id":"C1","name":"...","summary":"one sentence"}],'
+            f"The learner's brain already has these concepts (key, name): {[(k, n) for k, n, _ in known]}\n"
+            "Keep concept names as written in the chapter. If a chapter concept is the same as a known one, set "
+            "brain_key to its key. List in builds_on the known keys it directly depends on.\n"
+            'Return {"subject":"...","concepts":[{"id":"C1","name":"...","summary":"one sentence",'
+            '"brain_key":"key or null","builds_on":["key"]}],'
             '"problems":[{"id":"P1","concept":"C1","question":"...","solution":["one calculation per line"]}]}.\n'
             "Copy each worked-solution line exactly as written, in the form 'P(...) = expression = value'. "
             "Do not change, add or correct any number.\n\nCHAPTER:\n" + text)
@@ -66,7 +70,8 @@ class Planner:
                              text, flags=re.M | re.S):
             problems.append({"id": m.group(1), "concept": m.group(2), "question": m.group(3).strip(),
                              "solution": [l.strip() for l in m.group(4).splitlines() if l.strip()]})
-        return {"concepts": concepts, "problems": problems}
+        subject = re.search(r"Chapter\s+\d+\s*:\s*([^(\n]+)", text)
+        return {"subject": subject.group(1).strip() if subject else "", "concepts": concepts, "problems": problems}
 
     @staticmethod
     def _validate(ch: dict, source: str):
@@ -82,7 +87,7 @@ class Planner:
             if not _faithful(p["solution"], source):
                 raise ValueError(f"{p['id']} worked solution has numbers not in the chapter")
 
-    def plan(self, chapter: dict, attempted: dict) -> list:
+    def plan(self, chapter: dict, attempted: dict, known=()) -> list:
         """Decide the order of work for this upload. Model proposes; code validates and repairs."""
         allowed = {p["id"] for p in chapter["problems"]}
         steps, reasoning = None, ""
@@ -90,6 +95,7 @@ class Planner:
             data = llm.complete_json(
                 f"You are the Planner agent. The student's goal: {GOAL}\n"
                 f"Concepts: {[(c['id'], c['name']) for c in chapter['concepts']]}\n"
+                f"What the learner's brain already knows (key, name, level): {list(known)}\n"
                 f"Problems (id, concept, attempted by student): "
                 f"{[(p['id'], p['concept'], p['id'] in attempted) for p in chapter['problems']]}\n"
                 "Decide the order in which the Checker should mark the attempted problems "
