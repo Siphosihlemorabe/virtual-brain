@@ -1,0 +1,23 @@
+Chapter 9: Probability (Grade 10)
+
+Concept C1: Basic probability
+The sample space S is the set of all possible outcomes. For equally likely outcomes, the probability of an event E is P(E) = n(E) / n(S).
+
+Concept C2: Addition rule for inclusive events
+Two events are inclusive when they can happen at the same time. Then P(A or B) = P(A) + P(B) - P(A and B). We subtract P(A and B) so the overlap is not counted twice.
+
+Concept C3: Complementary events
+The complement of A is "not A". Since A and not A cover the whole sample space, P(not A) = 1 - P(A).
+
+Problem P1 (C1): A bag contains 5 red, 3 blue and 2 green marbles. One marble is drawn at random. Find P(blue).
+Worked solution:
+P(blue) = 3/10
+
+Problem P2 (C2): In a class of 30 learners, 18 play soccer, 12 play netball and 5 play both. A learner is chosen at random. Find P(soccer or netball).
+Worked solution:
+P(soccer or netball) = 18/30 + 12/30 - 5/30 = 25/30 = 5/6
+
+Problem P3 (C3): A fair die is rolled once. Find the probability of NOT rolling a 1 or a 2.
+Worked solution:
+P(1 or 2) = 2/6
+P(not 1 or 2) = 1 - 2/6 = 4/6 = 2/3

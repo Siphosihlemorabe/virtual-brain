@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Brain</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e2e0da;
+          --gap:#c0392b; --partly:#d68910; --ok:#1e8449; --accent:#5b2a86; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 20px; background:var(--accent); color:#fff; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:20px; } header span { opacity:.85; }
+  main { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  textarea { width:100%; height:150px; font:12px/1.4 ui-monospace, Consolas, monospace; border:1px solid var(--line); border-radius:6px; padding:8px; }
+  label { font-weight:600; display:block; margin:8px 0 4px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 14px; font-weight:600; cursor:pointer; }
+  button.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
+  .counters { display:flex; gap:12px; flex-wrap:wrap; }
+  .counter { flex:1; min-width:130px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+  .counter b { font-size:22px; display:block; }
+  .counter small { color:var(--muted); }
+  #log { height:420px; overflow-y:auto; font:12px/1.45 ui-monospace, Consolas, monospace; }
+  .ev { padding:5px 6px; border-bottom:1px solid var(--line); }
+  .ev .who { font-weight:700; } .ev .t { color:var(--muted); margin-right:6px; }
+  .k-warn { background:#fff8e6; } .k-error { background:#fdecea; } .k-plan, .k-reason { background:#f3edf8; }
+  .k-flag { background:#fdecea; } .k-fix { background:#eaf6ee; } .k-recheck { background:#eef4fb; } .k-handoff { color:var(--muted); }
+  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
+  .gap { background:var(--gap); } .partly { background:var(--partly); } .understood { background:var(--ok); } .na { background:#999; }
+  .muted { color:var(--muted); } s { color:var(--muted); }
+</style>
+</head>
+<body>
+<header><h1>Virtual Brain</h1><span>A digital colleague that takes a Grade 10 learner from a textbook chapter to proven understanding to a real career.</span></header>
+<main>
+  <section class="card">
+    <h2>1. Upload</h2>
+    <label for="chapter">Textbook chapter (with worked solutions)</label>
+    <textarea id="chapter" placeholder="Paste the chapter, or choose a .txt file"></textarea>
+    <input type="file" accept=".txt" data-target="chapter">
+    <label for="working">Student's working</label>
+    <textarea id="working" placeholder="Paste the student's working, or choose a .txt file"></textarea>
+    <input type="file" accept=".txt" data-target="working">
+    <div class="row">
+      <button class="secondary" id="sample">Load sample (probability)</button>
+      <button id="run">Run agents</button>
+      <span id="status" class="muted"></span>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>2. Agent activity</h2>
+    <div class="counters">
+      <div class="counter"><b id="c-corr">0</b><small>Reviewer corrections</small></div>
+      <div class="counter"><b id="c-human">0</b><small>Human interventions</small></div>
+      <div class="counter"><b id="c-llm">–</b><small>Language model</small></div>
+    </div>
+    <div id="log" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <h2>3. Marks per problem</h2>
+    <table><thead><tr><th>Problem</th><th>Concept</th><th>Mark</th><th>Why</th></tr></thead><tbody id="results"></tbody></table>
+  </section>
+
+  <section class="card">
+    <h2>4. Concepts in this chapter</h2>
+    <div id="concepts" class="muted">Run the agents to build the concept map.</div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let since = 0, timer = null;
+
+document.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => {
+  if (inp.files[0]) $(inp.dataset.target).value = await inp.files[0].text();
+}));
+
+$('sample').onclick = async () => {
+  $('chapter').value = await (await fetch('/api/sample/chapter')).text();
+  $('working').value = await (await fetch('/api/sample/working')).text();
+};
+
+$('run').onclick = async () => {
+  const body = new FormData();
+  body.append('chapter', $('chapter').value);
+  body.append('working', $('working').value);
+  const r = await fetch('/api/run', { method: 'POST', body });
+  if (!r.ok) { $('status').textContent = (await r.json()).detail || 'Could not start'; return; }
+  since = 0; $('log').innerHTML = ''; $('results').innerHTML = '';
+  $('run').disabled = true;
+  clearInterval(timer); timer = setInterval(poll, 600); poll();
+};
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const pill = lvl => `<span class="pill ${lvl === 'not attempted' ? 'na' : lvl}">${esc(lvl)}</span>`;
+
+async function poll() {
+  const s = await (await fetch('/api/state?since=' + since)).json();
+  for (const e of s.events) {
+    const div = document.createElement('div');
+    div.className = 'ev k-' + e.kind;
+    div.innerHTML = `<span class="t">${e.t}</span><span class="who">${esc(e.agent)}</span> · ${esc(e.msg)}`;
+    $('log').appendChild(div);
+    since = e.i + 1;
+  }
+  if (s.events.length) $('log').scrollTop = $('log').scrollHeight;
+  $('c-corr').textContent = s.counters.reviewer_corrections;
+  $('c-human').textContent = s.counters.human_interventions;
+  $('c-llm').textContent = s.llm;
+  $('status').textContent = s.status === 'running' ? 'Agents working…' : s.status;
+  const names = Object.fromEntries(s.concepts.map(c => [c.id, c.name]));
+  $('results').innerHTML = Object.entries(s.results).map(([id, r]) => {
+    const prev = r.checker && r.checker.level !== r.level ? `<s>${esc(r.checker.level)}</s> → ` : '';
+    return `<tr><td>${id}</td><td>${esc(names[r.concept] || r.concept)}</td><td>${prev}${pill(r.level)}</td><td>${esc(r.detail)}</td></tr>`;
+  }).join('');
+  if (s.concepts.length) $('concepts').innerHTML = '<ul>' + s.concepts.map(c =>
+    `<li><b>${esc(c.id)} ${esc(c.name)}</b> <span class="muted">${esc(c.summary)}</span></li>`).join('') + '</ul>';
+  if (s.status !== 'running') { clearInterval(timer); $('run').disabled = false; }
+}
+poll();
+</script>
+</body>
+</html>

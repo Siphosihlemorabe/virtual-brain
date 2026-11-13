@@ -1,0 +1,7 @@
+P1: P(blue) = 3/10
+
+P2: I drew a Venn diagram. Soccer only = 18 - 5 = 13, netball only = 12 - 5 = 7, both = 5.
+P(soccer or netball) = 13/30 + 7/30 + 5/30 = 25/30 = 5/6
+
+P3: P(1 or 2) = 1/6
+P(not 1 or 2) = 1 - 1/6 = 5/6
