@@ -14,13 +14,14 @@ from .tutor import Tutor
 class Session:
     def __init__(self):
         self.events = []
-        self.stage = "start"  # start | preparing | ready | checking | checked | error
+        self.stage = "start"  # start | preparing | ready | checking | checked | designing | error
         self.error = ""
         self.chapter = None
         self.results = {}
         self.brain = brainstore.load()
         self.careers = []
         self.recalls = []
+        self.round, self.round_plan = 1, []
         self.counters = {"reviewer_corrections": 0, "human_interventions": 0}
         self._lock = threading.Lock()
 
@@ -38,8 +39,20 @@ class Session:
                              "has_memo": bool(p["solution"])} for p in self.chapter["problems"]]
                 chapter = {**self.chapter, "problems": problems}
             return {"stage": self.stage, "error": self.error, "events": self.events[since:],
+                    "round": self.round, "round_plan": self.round_plan, "round_ids": self.round_ids(),
                     "chapter": chapter, "results": self.results, "counters": self.counters,
                     "brain": self.brain, "careers": self.careers, "recalls": self.recalls}
+
+    def round_ids(self):
+        if not self.chapter:
+            return []
+        return [p["id"] for p in self.chapter["problems"] if p.get("round", 1) == self.round]
+
+    def round_results(self):
+        return {pid: self.results[pid] for pid in self.round_ids() if pid in self.results}
+
+    def _topics(self):
+        return [n for _, n, _ in brainstore.summary(self.brain)] + [c["name"] for c in self.chapter["concepts"]]
 
     def _fail(self, e):
         msg = str(e) if isinstance(e, ValueError) else f"Unexpected error: {type(e).__name__}: {e}"
@@ -56,6 +69,9 @@ class Session:
             known = brainstore.summary(self.brain)
             chapter = Planner(self.log).read_chapter(chapter_text, known)
             Tutor(self.log, self.counters).fill(chapter, [n for _, n, _ in known] + [c["name"] for c in chapter["concepts"]])
+            for p in chapter["problems"]:
+                p.setdefault("round", 1)
+                p.setdefault("form", "word")
             practice = [p for p in chapter["problems"] if p["solution"]]
             skipped = [p["id"] for p in chapter["problems"] if not p["solution"]]
             if skipped:
@@ -119,8 +135,10 @@ class Session:
             chapter = self.chapter
             planner, checker, reviewer = Planner(self.log), Checker(self.log), Reviewer(self.log)
             known = brainstore.summary(self.brain)
-            self.log("Orchestrator", "handoff", "Student handed in their practice. Handing it to the Checker.")
-            work = checker.read_answers(answers, chapter)
+            self.log("Orchestrator", "handoff", f"Student handed in round {self.round}. Handing it to the Checker.")
+            ids = set(self.round_ids())
+            chapter = {**chapter, "problems": [p for p in chapter["problems"] if p["id"] in ids]}
+            work = checker.read_answers({k: v for k, v in answers.items() if k in ids}, chapter)
             if not work:
                 raise ValueError("I could not find any working to check. Write your calculations in the answer boxes.")
             plan = planner.plan(chapter, work, known)
@@ -134,11 +152,13 @@ class Session:
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
             note_text = "\n".join(f"{cid}: {line}" for cid, txt in notes.items() for line in str(txt).splitlines()
                                   if line.strip())
-            keymap = brainstore.update(self.brain, chapter, self.results, note_text, self.log)
-            if any(r["level"] in ("gap", "partly") for r in self.results.values()):
+            latest = self.round_results()
+            keymap = brainstore.update(self.brain, chapter, latest, note_text, self.log)
+            self.recalls = []
+            if any(r["level"] in ("gap", "partly") for r in latest.values()):
                 self.log("Planner", "reason", "Some problems are not yet understood, so before moving on I am asking "
                                               "the brain whether an earlier topic is the cause.")
-                self.recalls = recall.run(self.brain, keymap, chapter, self.results, self.log)
+                self.recalls = recall.run(self.brain, keymap, chapter, latest, self.log)
             self.log("Brain", "handoff", "Handing understood concepts to the Career guide.")
             self.careers = CareerGuide(self.log).offer(self.brain)
             self.log("Orchestrator", "done", "Checked. Your results and next steps are ready.")
@@ -146,6 +166,25 @@ class Session:
         except Exception as e:
             self._fail(e)
             self.stage = "ready" if self.chapter else "error"
+
+    # ------------------------------------------------------------ phase 3: practise again, differently
+
+    def next_round(self):
+        self.stage, self.error = "designing", ""
+        try:
+            latest = self.round_results()
+            if not latest:
+                raise ValueError("Check this round first, so I know what to practise next.")
+            self.log("Orchestrator", "handoff", "Student asked to practise again. Handing their results to the Planner.")
+            ids, plan = Tutor(self.log, self.counters).variants(self.chapter, latest, self._topics())
+            if not ids:
+                raise ValueError("I could not prepare a new round I trust. Try again in a moment.")
+            self.round, self.round_plan = self.round + 1, plan
+            self.log("Planner", "plan", f"Round {self.round} is ready: {len(ids)} new questions, checked by the Reviewer.")
+            self.stage = "ready"
+        except Exception as e:
+            self._fail(e)
+            self.stage = "checked"
 
     def check_career(self, concept, text):
         """Student uploads hand maths for a career task; the Reviewer checks it against the code."""

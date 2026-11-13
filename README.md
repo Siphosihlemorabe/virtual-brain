@@ -25,6 +25,7 @@ The language model reads text, writes material (checked in code before use) and 
 2. **Learn.** Concepts and worked examples are revealed one step at a time, with a notes box per concept. If the chapter has no worked examples, practice questions or memos, the **Tutor** writes them and the **Reviewer** checks every one before the student sees it: each line must add up, and an independent blind solve must reach the same answer. Anything that fails goes back to the Tutor once. If it fails again, it is dropped.
 3. **Practise.** One answer box per question. Any valid method counts.
 4. **Results.** Marks are checked by the Reviewer (a corrected mark is shown as corrected), the brain is updated, and recall says what to revise first.
+   **Practise again in a new way:** the Planner reads this round's results and chooses new forms for each concept (word problem, table, Venn diagram, list the outcomes, spot the mistake, work backwards, on the job). Weak concepts get two new forms, and understood ones get a stretch question. The Tutor writes them, and the Reviewer checks every question and its diagram or table before the student sees it. A spot-the-mistake question must really contain a mistake. The brain updates from the newest round, so a gap can become understood.
 5. **Real world.** Mastered concepts unlock a career link with real code and a by-hand proof.
 
 The side panel "Your colleague at work" shows every agent action, every Reviewer correction and the human-intervention counter.
@@ -48,7 +49,8 @@ Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/
 2. Choose **Euclidean geometry**, then do the same. P1 is traced back to algebra (confirmed, and the student's own note comes back). The algebra guess for P2 is rejected because the mistake is a geometry fact.
 3. Choose **Probability (with worked solutions)**, fill the sample answers, then check. P2 (a Venn-diagram method) is **flagged**, **fixed** and **re-checked**.
 4. **Real world:** check the sample hand maths (the Reviewer finds 1/16 should be 1/32), then the corrected version. The Data scientist node appears in **My brain**.
-5. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
+5. On Results, click **Practise again in a new way**. The Planner's reasons appear above round 2, which uses diagrams, tables and spot-the-mistake questions. Answer them correctly and Complementary events moves from gap to understood.
+6. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
 
 ## Using your own data
 

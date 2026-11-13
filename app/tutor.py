@@ -2,6 +2,7 @@
 Nothing it writes reaches the student until the Reviewer has checked it in code."""
 from . import llm
 from .mathcheck import evaluate, fmt, parse_steps
+from .practice import blind_text, plan_round, visual_problem, write_variants
 
 FORMAT = (
     "Format for every solution: a list of lines, one calculation per line, written as "
@@ -73,16 +74,38 @@ class Tutor:
                                     f"{sum(i['kind'] == 'problem' for i in new)} practice questions. "
                                     "Handing them to the Reviewer before the student sees anything.")
 
-        passed, failed = verify(new, self.log)
+        self._place(chapter, self._review(new, fmt_rules))
+
+    def _review(self, items, fmt_rules):
+        """Reviewer checks; failures go back to the Tutor once; anything still wrong is dropped."""
+        passed, failed = verify(items, self.log)
         if failed:
             fixed = self._rewrite(failed, fmt_rules)
             ok2, still = verify(fixed, self.log, recheck=True)
             self.counters["reviewer_corrections"] += len(ok2)
             passed += ok2
-            for it in still:
+            for it in still + [it for it in failed if it not in fixed]:
                 self.log("Reviewer", "error", f"Dropped {it['tmp']} ('{it['question'][:60]}'): still wrong after a rewrite. "
                                               "The student will not see it.")
-        self._place(chapter, passed)
+        return passed
+
+    def variants(self, chapter: dict, results: dict, topics: list) -> list:
+        """A new round: the Planner picks concepts and forms, the Tutor writes, the Reviewer checks.
+        Returns the ids of the new problems and the Planner's round plan."""
+        tried = {}
+        for p in chapter["problems"]:
+            tried.setdefault(p["concept"], set()).add(p.get("form", "word"))
+        plan = plan_round(chapter, results, tried, self.log)
+        if not plan:
+            return [], plan
+        fmt_rules = FORMAT.format(topics=topics)
+        items = write_variants(chapter, plan, topics, fmt_rules, self.log)
+        rnd = 1 + max([p.get("round", 1) for p in chapter["problems"]] or [1])
+        for i, it in enumerate(items):
+            it["tmp"], it["round"] = f"T{i + 1}", rnd
+        before = {p["id"] for p in chapter["problems"]}
+        self._place(chapter, self._review(items, fmt_rules))
+        return [p["id"] for p in chapter["problems"] if p["id"] not in before], plan
 
     def _rewrite(self, failed, fmt_rules):
         self.log(self.name, "fix", f"Rewriting {len(failed)} item(s) the Reviewer sent back.")
@@ -90,8 +113,8 @@ class Tutor:
             data = llm.complete_json(
                 "You are the Tutor agent. The Reviewer found these solutions wrong. Rewrite each solution correctly "
                 "(you may also fix the question if it is unclear). " + fmt_rules + "\n"
-                f"{[(it['tmp'], it['question'], it['solution'], it['problem']) for it in failed]}\n"
-                'Return {"T1":{"question":"...","solution":["..."]}, ...}', timeout=120)
+                f"{[(it['tmp'], it.get('form', ''), it['question'], it.get('visual'), it['solution'], it['problem']) for it in failed]}\n"
+                'Return {"T1":{"question":"...","visual":{...} or null,"solution":["..."]}, ...}', timeout=120)
         except llm.LLMError as e:
             self.log(self.name, "warn", f"Rewrite failed ({e}).")
             return []
@@ -102,6 +125,8 @@ class Tutor:
                 if it["kind"] != "memo":  # a chapter exercise keeps its own wording
                     it["question"] = fix.get("question") or it["question"]
                 it["solution"] = fix["solution"]
+                if it.get("form") and fix.get("visual") is not None:
+                    it["visual"] = fix["visual"]
                 out.append(it)
         return out
 
@@ -121,7 +146,9 @@ class Tutor:
                                             "solution": it["solution"], "source": "tutor"})
             else:
                 chapter["problems"].append({"id": next_id("P", chapter["problems"]), "concept": it["concept"],
-                                            "question": it["question"], "solution": it["solution"], "source": "tutor"})
+                                            "question": it["question"], "solution": it["solution"], "source": "tutor",
+                                            "form": it.get("form", "word"), "visual": it.get("visual"),
+                                            "round": it.get("round", 1)})
         chapter["examples"].sort(key=lambda e: (e["concept"], e["id"]))
 
 
@@ -136,6 +163,8 @@ def verify(items, log, recheck=False):
             bad = next((s for s in steps if not s.consistent), None)
             it["problem"] = (f"'{bad.text}' does not add up: {bad.first_expr} = {fmt(bad.values[0])}"
                              if bad else None)
+        if not it["problem"]:
+            it["problem"] = visual_problem(it, steps[-1].value)
         if it["problem"]:
             failed.append(it)
         else:
@@ -147,7 +176,7 @@ def verify(items, log, recheck=False):
             blind = llm.complete_json(
                 "Solve each question yourself, independently. For each, reply with ONE arithmetic expression "
                 "(numbers, + - * / and brackets only) whose value is the final answer. Use fractions, not decimals.\n"
-                f"{[(it['tmp'], it['question']) for it in pending]}\n"
+                f"{[(it['tmp'], blind_text(it)) for it in pending]}\n"
                 'Return {"T1":"expression", ...}', timeout=120)
         except llm.LLMError as e:
             log("Reviewer", "warn", f"Independent solve unavailable ({e}); accepting items whose arithmetic adds up.")

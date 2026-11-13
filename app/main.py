@@ -31,7 +31,7 @@ HAND = {"hand": "student_hand_maths.txt", "hand_fixed": "student_hand_maths_fixe
 
 
 def _busy():
-    if current.stage in ("preparing", "checking"):
+    if current.stage in ("preparing", "checking", "designing"):
         raise HTTPException(409, "Your colleague is still working. Give it a moment.")
 
 
@@ -89,6 +89,15 @@ def check(answers: str = Form("{}"), notes: str = Form("{}")):
     except json.JSONDecodeError:
         raise HTTPException(400, "Answers were not sent correctly.")
     threading.Thread(target=current.check, args=(a, n), daemon=True).start()
+    return {"ok": True}
+
+
+@app.post("/api/practice/next")
+def practice_next():
+    _busy()
+    if current.chapter is None:
+        raise HTTPException(400, "Open a chapter first.")
+    threading.Thread(target=current.next_round, daemon=True).start()
     return {"ok": True}
 
 

@@ -129,6 +129,21 @@
   .revise.go { background:var(--ok-soft); } .revise.stay { background:var(--partly-soft); }
   details summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; margin-top:6px; }
 
+  /* practice forms */
+  .tag.form { background:var(--accent-soft); color:var(--accent); }
+  .plan { margin:10px 0 0; padding-left:18px; font-size:14px; } .plan li { margin:3px 0; }
+  .vtable { border-collapse:collapse; margin:4px 0 12px; font-size:14px; min-width:220px; }
+  .vtable th, .vtable td { border:1px solid var(--line); padding:6px 12px; text-align:left; }
+  .vtable th { background:var(--surface-2); }
+  .vbox { border:1px dashed var(--line); border-radius:10px; padding:10px 12px; margin:4px 0 12px; }
+  .vbox.flawed { border-color:var(--gap); background:var(--gap-soft); }
+  .venn { width:100%; max-width:380px; display:block; margin:4px 0 12px; }
+  .venn .u { fill:none; stroke:var(--line); stroke-width:2; }
+  .venn .a { fill:color-mix(in srgb, var(--a-checker) 22%, transparent); stroke:var(--a-checker); stroke-width:2; }
+  .venn .b { fill:color-mix(in srgb, var(--a-tutor) 22%, transparent); stroke:var(--a-tutor); stroke-width:2; }
+  .venn .lbl { font:700 13px system-ui; fill:var(--ink); } .venn .num { font:800 20px system-ui; fill:var(--ink); }
+  .venn .num.small { font:600 13px system-ui; fill:var(--muted); }
+
   /* careers */
   .chain { font-weight:800; color:var(--accent); margin-bottom:8px; }
   .career-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
@@ -234,7 +249,7 @@ async function pollOnce() {
   if (s.events.length) since = s.events[s.events.length - 1].i + 1;
   const prevStage = S && S.stage;
   S = { ...s, events: undefined };
-  const busy = s.stage === 'preparing' || s.stage === 'checking';
+  const busy = ['preparing', 'checking', 'designing'].includes(s.stage);
   document.body.classList.toggle('busy', busy);
   $('c-corr').textContent = s.counters.reviewer_corrections;
   $('c-human').textContent = s.counters.human_interventions;
@@ -250,6 +265,7 @@ function startPolling() { if (!timer) timer = setInterval(poll, 700); poll(); }
 function onStage(stage, prev) {
   if (stage === 'ready' && prev === 'preparing') step = 1;
   if (stage === 'checked' && prev === 'checking') step = 3;
+  if (stage === 'ready' && prev === 'designing') step = 2;
   if (stage === 'start') step = 0;
 }
 
@@ -265,9 +281,11 @@ function addEvent(e) {
 }
 
 // ---------------------------------------------------------------- study view
+const roundChecked = () => S.round_ids.some(id => S.results[id]);
+const roundProblems = () => S.chapter.problems.filter(p => S.round_ids.includes(p.id));
 function maxStep() {
   if (!S || !S.chapter) return 0;
-  if (S.stage === 'checked' || Object.keys(S.results).length) return S.careers.length ? 4 : 3;
+  if (S.stage === 'checked' || S.stage === 'designing' || roundChecked()) return S.careers.length ? 4 : 3;
   return 2;
 }
 
@@ -276,9 +294,9 @@ function render() {
   if (step > max) step = max;
   $('stepper').innerHTML = STEPS.map((t, i) => `<button ${i > max ? 'disabled' : ''} ${i === step ? 'aria-current="step"' : ''}
       class="${i < step ? 'done' : ''}" onclick="goStep(${i})"><span class="n">Step ${i + 1}</span><span class="t">${t}</span></button>`).join('');
-  const key = [step, S.stage, S.chapter && S.chapter.problems.map(p => p.id).join(), JSON.stringify(S.results),
+  const key = [step, S.stage, S.round, S.chapter && S.chapter.problems.map(p => p.id).join(), JSON.stringify(S.results),
                JSON.stringify(S.recalls), JSON.stringify(S.careers.map(c => [c.concept, c.result && c.result.msg])), S.error].join('|');
-  if (key === renderedKey && S.stage !== 'preparing' && S.stage !== 'checking') return;
+  if (key === renderedKey && !['preparing', 'checking', 'designing'].includes(S.stage)) return;
   renderedKey = key;
   const body = $('step-body');
   body.innerHTML = [renderChapter, renderLearn, renderPractise, renderResults, renderCareers][step]();
@@ -348,15 +366,27 @@ function renderPractise() {
       <h2>Checking your work</h2><p class="lead">The Checker marks each answer, the Reviewer redoes the maths to make sure the marks are fair, and your brain is updated.</p>
       ${recentTicker()}</div></div></div>`;
   }
+  if (S.stage === 'designing') {
+    return `<div class="card"><div class="working"><div class="spinner"></div><div>
+      <h2>Designing round ${S.round + 1}</h2><p class="lead">The Planner is choosing new ways to practise based on your results, the Tutor is writing the questions, and the Reviewer is checking every one, diagrams included.</p>
+      ${recentTicker()}</div></div></div>`;
+  }
   const byConcept = Object.fromEntries(ch.concepts.map(c => [c.id, c.name]));
-  return `<div class="card"><h2>Practise</h2>
-      <p class="lead" style="margin:0">Show your working, one step per line, like <code>P(red) = 3/10</code>. Any correct method counts, not just the textbook's.</p>
-      ${sample && sample.has_answers ? `<div class="row"><span class="muted" style="font-size:13px">Demo:</span>
+  const why = S.round > 1 && S.round_plan.length ? `<ul class="plan">${S.round_plan.map(r =>
+      `<li><b>${esc(byConcept[r.concept] || r.concept)}</b> as ${r.forms.map(f => esc(FORM_LABEL[f] || f)).join(' + ')}${r.why ? ` <span class="muted">· ${esc(r.why)}</span>` : ''}</li>`).join('')}</ul>` : '';
+  return `<div class="card"><h2>Practise${S.round > 1 ? ` · round ${S.round}` : ''}</h2>
+      <p class="lead" style="margin:0">${S.round > 1 ? 'Same ideas, new angles. Your colleague chose these from your last results:' :
+        'Show your working, one step per line, like <code>P(red) = 3/10</code>. Any correct method counts, not just the textbook\'s.'}</p>
+      ${why}
+      ${S.round === 1 && sample && sample.has_answers ? `<div class="row"><span class="muted" style="font-size:13px">Demo:</span>
         <button class="chip" onclick="fillSample(false)">Fill sample answers</button>
         ${sample.has_retry ? `<button class="chip" onclick="fillSample(true)">Fill improved answers</button>` : ''}</div>` : ''}</div>` +
-    ch.problems.map(p => `<div class="card problem">
-        <span class="tag">${esc(byConcept[p.concept] || p.concept)}</span> ${p.source === 'tutor' ? '<span class="tag tutor">Practice by Tutor</span>' : ''}
+    roundProblems().map(p => `<div class="card problem">
+        <span class="tag">${esc(byConcept[p.concept] || p.concept)}</span>
+        ${p.form && p.form !== 'word' ? `<span class="tag form">${esc(FORM_LABEL[p.form] || p.form)}</span>` : ''}
+        ${p.source === 'tutor' ? '<span class="tag tutor">By Tutor · checked by Reviewer</span>' : ''}
         <div class="q"><b>${esc(p.id)}.</b> ${esc(p.question)}</div>
+        ${visual(p)}
         <textarea class="mono" rows="3" data-answer="${p.id}" aria-label="Your working for ${esc(p.id)}" placeholder="Your working…"></textarea>
         ${S.results[p.id] ? `<div style="margin-top:6px">Last check: ${pill(S.results[p.id].level)}</div>` : ''}
       </div>`).join('') +
@@ -367,10 +397,10 @@ function renderPractise() {
 const pill = lvl => `<span class="pill ${['understood','partly','gap'].includes(lvl) ? lvl : 'none'}">${esc(lvl)}</span>`;
 
 function renderResults() {
-  const ch = S.chapter, res = S.results, levels = Object.values(res).map(r => r.level);
+  const ch = S.chapter, res = S.results, levels = S.round_ids.filter(id => res[id]).map(id => res[id].level);
   const count = l => levels.filter(x => x === l).length;
   const byConcept = Object.fromEntries(ch.concepts.map(c => [c.id, c.name]));
-  const cards = ch.problems.filter(p => res[p.id]).map(p => {
+  const cards = roundProblems().filter(p => res[p.id]).map(p => {
     const r = res[p.id], corrected = r.checker && r.checker.level !== r.level;
     return `<div class="card result">
       <div class="head"><b>${esc(p.id)}</b><span class="tag">${esc(byConcept[p.concept] || '')}</span>${pill(r.level)}</div>
@@ -386,8 +416,10 @@ function renderResults() {
       <div><b style="color:var(--partly)">${count('partly')}</b>partly</div><div><b style="color:var(--gap)">${count('gap')}</b>gaps</div></div>
     ${recalls ? `<div class="card"><h3>What to do next</h3>${recalls}</div>` : ''}
     ${cards}
-    <div class="row"><button class="btn ghost" onclick="goStep(2)">Practise again</button>
-      ${S.careers.length ? `<button class="btn" onclick="goStep(4)">See it in the real world →</button>` : ''}</div>`;
+    <div class="row"><button class="btn" onclick="nextRound()">Practise again in a new way</button>
+      <button class="btn ghost" onclick="goStep(2)">Retry these questions</button>
+      ${S.careers.length ? `<button class="btn ghost" onclick="goStep(4)">See it in the real world →</button>` : ''}</div>
+    ${S.error ? `<div class="error">${esc(S.error)}</div>` : ''}`;
 }
 
 function renderCareers() {
@@ -446,6 +478,52 @@ async function check() {
   if (!r.ok) return alertBox((await r.json()).detail);
   startPolling();
 }
+async function nextRound() {
+  const r = await fetch('/api/practice/next', { method: 'POST' });
+  if (!r.ok) return alertBox((await r.json()).detail);
+  step = 2; renderedKey = '';
+  startPolling();
+}
+
+const FORM_LABEL = { word: 'Word problem', table: 'Read the table', venn: 'Venn diagram', sample_space: 'List the outcomes',
+                     spot_mistake: 'Spot the mistake', reverse: 'Work backwards', career: 'On the job' };
+const clean = l => esc(String(l).replace(/\(uses:[^)]*\)/i, '').trim());
+
+function visual(p) {
+  const v = p.visual;
+  if (!v) return '';
+  if (p.form === 'table' && Array.isArray(v.rows)) {
+    return `<table class="vtable"><thead><tr>${(v.headers || []).map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+      <tbody>${v.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  }
+  if (p.form === 'venn') return venn(v);
+  if (p.form === 'sample_space' && Array.isArray(v.outcomes)) {
+    return `<details class="vbox"><summary>Done listing? Check your list</summary>
+      <div class="chips" style="margin-top:8px">${v.outcomes.map(o => `<span class="tag">${esc(o)}</span>`).join('')}</div>
+      <div class="muted" style="font-size:13px;margin-top:6px">${v.outcomes.length} equally likely outcomes</div></details>`;
+  }
+  if (p.form === 'spot_mistake' && Array.isArray(v.flawed)) {
+    return `<div class="vbox flawed"><div class="muted" style="font-size:13px;margin-bottom:4px">A learner's working. One step is wrong:</div>
+      <ol class="steps">${v.flawed.map(l => `<li>${clean(l)}</li>`).join('')}</ol></div>`;
+  }
+  return '';
+}
+
+function venn(v) {
+  const W = 340, H = 190, r = 70, cy = 95, ax = 130, bx = 210;
+  return `<svg class="venn" viewBox="0 0 ${W} ${H}" role="img"
+      aria-label="Venn diagram: only ${esc(v.a)} ${esc(v.only_a)}, both ${esc(v.both)}, only ${esc(v.b)} ${esc(v.only_b)}, neither ${esc(v.neither ?? 0)}">
+    <rect x="2" y="2" width="${W - 4}" height="${H - 4}" rx="10" class="u"/>
+    <circle cx="${ax}" cy="${cy}" r="${r}" class="a"/><circle cx="${bx}" cy="${cy}" r="${r}" class="b"/>
+    <text x="${ax - 45}" y="${cy - r + 4}" class="lbl" text-anchor="middle">${esc(v.a)}</text>
+    <text x="${bx + 45}" y="${cy - r + 4}" class="lbl" text-anchor="middle">${esc(v.b)}</text>
+    <text x="${ax - 30}" y="${cy + 6}" class="num" text-anchor="middle">${esc(v.only_a)}</text>
+    <text x="${(ax + bx) / 2}" y="${cy + 6}" class="num" text-anchor="middle">${esc(v.both)}</text>
+    <text x="${bx + 30}" y="${cy + 6}" class="num" text-anchor="middle">${esc(v.only_b)}</text>
+    <text x="${W - 16}" y="${H - 14}" class="num small" text-anchor="end">neither: ${esc(v.neither ?? 0)}</text>
+  </svg>`;
+}
+
 function reveal(id, n) { revealed[id] = (revealed[id] ?? 1) + n; renderedKey = ''; render(); }
 async function loadHand(concept, name) { answers['hand:' + concept] = await (await fetch('/api/sample/' + name)).text(); renderedKey = ''; render(); }
 async function checkHand(concept) {
@@ -536,7 +614,7 @@ $('reset').onclick = async () => {
   await poll();
   if (S.chapter) step = Object.keys(S.results).length ? 3 : 1;
   renderedKey = ''; render();
-  if (S.stage === 'preparing' || S.stage === 'checking') startPolling();
+  if (['preparing', 'checking', 'designing'].includes(S.stage)) startPolling();
 })();
 </script>
 </body>
