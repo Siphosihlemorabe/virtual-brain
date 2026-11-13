@@ -1,12 +1,83 @@
 {
-  "_about": "Career links per brain concept. 'code' names a file in samples/career_code; it is run as-is and its variables are the answers the student must match by hand.",
-  "basic-probability": {
-    "application": "Naive Bayes classifier",
-    "use": "Spam email detection",
-    "career": "Data scientist",
-    "explain": "A spam filter is a probability calculator. It counts how often words like 'free' and 'win' appear in spam and in normal email, multiplies those fractions, and picks the more likely group. Data scientists build and tune these models.",
-    "code": "naive_bayes_spam.py",
-    "check": ["score_spam", "score_ham", "p_spam"],
-    "task": "The code learned from 8 emails: 4 spam and 4 not spam (ham). 'free' is in 3 of the 4 spam emails and 1 of the 4 ham emails. 'win' is in 2 of the 4 spam emails and 1 of the 4 ham emails. A new email contains 'free' and 'win'. By hand, work out:\n  score_spam = P(spam) x P(free in spam) x P(win in spam)\n  score_ham = P(ham) x P(free in ham) x P(win in ham)\n  p_spam = score_spam / (score_spam + score_ham)\nWrite one line each, like: score_spam = 4/8 * 3/4 * 2/4 = ..."
+  "_about": "Curated career catalogue. The Career guide may only choose from these careers and missions; it never invents careers. 'needs' lists brain concept keys the career builds on (for pathway progress). 'missions' are keys in app/missions.py. 'subjects' is general guidance on useful school subjects, not an admission requirement.",
+  "interests": {
+    "sport": "Sport",
+    "health": "Health and care",
+    "tech": "Tech and data",
+    "money": "Money and business",
+    "building": "Building and engineering",
+    "nature": "Nature and farming"
+  },
+  "careers": {
+    "data-scientist": {
+      "name": "Data scientist", "interests": ["tech", "money"],
+      "about": "Finds patterns in data and builds models that make predictions, like filters that catch spam or fraud.",
+      "missions": ["spam_filter", "overlap_screening"],
+      "needs": ["fractions", "basic-probability", "addition-rule-for-inclusive-events", "complementary-events", "solving-algebraic-equations"],
+      "subjects": "Mathematics (not Mathematical Literacy). Information Technology helps."
+    },
+    "sports-analyst": {
+      "name": "Sports performance analyst", "interests": ["sport", "tech"],
+      "about": "Turns match data into decisions: who takes the penalty, which play works, how a team is improving.",
+      "missions": ["success_rate", "overlap_screening"],
+      "needs": ["fractions", "basic-probability", "addition-rule-for-inclusive-events"],
+      "subjects": "Mathematics. Physical Education experience helps."
+    },
+    "quality-inspector": {
+      "name": "Quality controller", "interests": ["building", "money"],
+      "about": "Tests samples from a factory line and predicts how many items in a batch will pass before they ship.",
+      "missions": ["quality_check"],
+      "needs": ["fractions", "basic-probability", "complementary-events"],
+      "subjects": "Mathematics. Physical Sciences helps."
+    },
+    "actuary": {
+      "name": "Actuary", "interests": ["money"],
+      "about": "Prices risk for insurance and medical aid schemes by working out how likely claims are.",
+      "missions": ["quality_check", "overlap_screening"],
+      "needs": ["fractions", "basic-probability", "addition-rule-for-inclusive-events", "complementary-events", "solving-algebraic-equations"],
+      "subjects": "Mathematics (not Mathematical Literacy), with strong marks."
+    },
+    "epidemiologist": {
+      "name": "Epidemiologist", "interests": ["health", "tech"],
+      "about": "Tracks how illness spreads in communities and screens for people with overlapping symptoms.",
+      "missions": ["overlap_screening"],
+      "needs": ["fractions", "basic-probability", "addition-rule-for-inclusive-events", "complementary-events"],
+      "subjects": "Mathematics and Life Sciences."
+    },
+    "nurse": {
+      "name": "Nurse", "interests": ["health"],
+      "about": "Cares for patients and works out safe medicine doses from a patient's weight.",
+      "missions": ["dosage"],
+      "needs": ["fractions", "solving-algebraic-equations"],
+      "subjects": "Life Sciences. Mathematics or Mathematical Literacy, depending on the programme."
+    },
+    "electrician": {
+      "name": "Electrician", "interests": ["building"],
+      "about": "Installs and checks wiring, and calculates current and power so circuits stay safe.",
+      "missions": ["ohms_law"],
+      "needs": ["fractions", "solving-algebraic-equations"],
+      "subjects": "Mathematics or Technical Mathematics. Physical Sciences helps."
+    },
+    "architect": {
+      "name": "Architect", "interests": ["building"],
+      "about": "Designs buildings and works out angles and lengths so roofs and walls fit together.",
+      "missions": ["roof_truss"],
+      "needs": ["solving-algebraic-equations", "euclidean-geometry"],
+      "subjects": "Mathematics. Engineering Graphics and Design helps."
+    },
+    "agricultural-scientist": {
+      "name": "Agricultural scientist", "interests": ["nature", "money"],
+      "about": "Helps farms grow more by testing seeds, soil and crops, and predicting harvests.",
+      "missions": ["quality_check", "success_rate"],
+      "needs": ["fractions", "basic-probability", "complementary-events"],
+      "subjects": "Mathematics, Life Sciences or Agricultural Sciences."
+    },
+    "meteorologist": {
+      "name": "Meteorologist", "interests": ["nature", "tech"],
+      "about": "Forecasts the weather from past records and gives the chance of rain.",
+      "missions": ["success_rate", "quality_check"],
+      "needs": ["fractions", "basic-probability", "complementary-events"],
+      "subjects": "Mathematics and Physical Sciences."
+    }
   }
 }

@@ -8,6 +8,7 @@ from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from . import brain as brainstore
+from . import career
 from . import llm
 from .orchestrator import Session
 
@@ -27,11 +28,10 @@ CHAPTERS = {
                 "answers": "algebra_working.txt", "notes": "algebra_notes.txt"},
     "geometry": {"title": "Euclidean geometry", "chapter": "geometry_chapter.txt", "answers": "geometry_working.txt"},
 }
-HAND = {"hand": "student_hand_maths.txt", "hand_fixed": "student_hand_maths_fixed.txt"}
 
 
 def _busy():
-    if current.stage in ("preparing", "checking", "designing"):
+    if current.stage in ("preparing", "checking", "designing", "careering"):
         raise HTTPException(409, "Your colleague is still working. Give it a moment.")
 
 
@@ -54,8 +54,6 @@ def samples():
 
 @app.get("/api/sample/{name}", response_class=PlainTextResponse)
 def sample_text(name: str):
-    if name in HAND:
-        return (SAMPLES / HAND[name]).read_text(encoding="utf-8")
     if name not in CHAPTERS:
         raise HTTPException(404)
     return (SAMPLES / CHAPTERS[name]["chapter"]).read_text(encoding="utf-8")
@@ -106,11 +104,38 @@ def state(since: int = 0):
     return {**current.snapshot(since), "llm": llm.provider()}
 
 
-@app.post("/api/career/check")
-def career_check(concept: str = Form(...), working: str = Form("")):
+@app.post("/api/interests")
+def save_interests(interests: str = Form("[]")):
     _busy()
     try:
-        return current.check_career(concept, working)
+        chosen = json.loads(interests)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Interests were not sent correctly.")
+    threading.Thread(target=current.plan_careers, args=(chosen if isinstance(chosen, list) else [],), daemon=True).start()
+    return {"ok": True}
+
+
+@app.post("/api/career/whatif")
+def career_whatif(card: str = Form(...), params: str = Form("{}")):
+    try:
+        return career.whatif(current.card(card), json.loads(params))
+    except (ValueError, json.JSONDecodeError) as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/career/demo/{card_id}", response_class=PlainTextResponse)
+def career_demo(card_id: str, slip: bool = False):
+    try:
+        return career.demo_hand(current.card(card_id), slip)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.post("/api/career/check")
+def career_check(card: str = Form(...), working: str = Form("")):
+    _busy()
+    try:
+        return current.check_career(card, working)
     except ValueError as e:
         raise HTTPException(400, str(e))
 

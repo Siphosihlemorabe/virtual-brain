@@ -157,6 +157,14 @@
   .ev.learn { background:color-mix(in srgb, var(--a-brain) 12%, transparent); }
 
   /* careers */
+  .chip.pick.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
+  .mission .head, .pathway .head { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
+  .brief { background:var(--surface-2); border-radius:10px; padding:12px 14px; margin:12px 0 0; font-size:15px; }
+  .slider { display:block; font-size:14px; margin:10px 0 0; } .slider input { width:100%; accent-color:var(--accent); }
+  .whatif-out { margin:10px 0; padding:10px 12px; border-radius:10px; background:var(--code-bg); color:var(--code-ink); font-size:13px; min-height:40px; }
+  .whatif-out code { color:inherit; }
+  .pathway { border-top:1px solid var(--line); padding:12px 0; } .pathway:first-of-type { border-top:0; }
+  .pathway .bar { margin-top:6px; }
   .chain { font-weight:800; color:var(--accent); margin-bottom:8px; }
   .career-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
   @media (max-width: 800px) { .career-grid { grid-template-columns:1fr; } }
@@ -266,7 +274,7 @@ async function pollOnce() {
   if (s.events.length) since = s.events[s.events.length - 1].i + 1;
   const prevStage = S && S.stage;
   S = { ...s, events: undefined };
-  const busy = ['preparing', 'checking', 'designing'].includes(s.stage);
+  const busy = ['preparing', 'checking', 'designing', 'careering'].includes(s.stage);
   document.body.classList.toggle('busy', busy);
   $('c-corr').textContent = s.counters.reviewer_corrections;
   $('c-human').textContent = s.counters.human_interventions;
@@ -302,7 +310,7 @@ const roundChecked = () => S.round_ids.some(id => S.results[id]);
 const roundProblems = () => S.chapter.problems.filter(p => S.round_ids.includes(p.id));
 function maxStep() {
   if (!S || !S.chapter) return 0;
-  if (S.stage === 'checked' || S.stage === 'designing' || roundChecked()) return S.careers.length ? 4 : 3;
+  if (['checked', 'designing', 'careering'].includes(S.stage) || roundChecked()) return 4;
   return 2;
 }
 
@@ -312,8 +320,8 @@ function render() {
   $('stepper').innerHTML = STEPS.map((t, i) => `<button ${i > max ? 'disabled' : ''} ${i === step ? 'aria-current="step"' : ''}
       class="${i < step ? 'done' : ''}" onclick="goStep(${i})"><span class="n">Step ${i + 1}</span><span class="t">${t}</span></button>`).join('');
   const key = [step, S.stage, S.round, S.chapter && S.chapter.problems.map(p => p.id).join(), JSON.stringify(S.results),
-               JSON.stringify(S.recalls), JSON.stringify(S.noticed), JSON.stringify(S.careers.map(c => [c.concept, c.result && c.result.msg])), S.error].join('|');
-  if (key === renderedKey && !['preparing', 'checking', 'designing'].includes(S.stage)) return;
+               JSON.stringify(S.recalls), JSON.stringify(S.noticed), JSON.stringify(S.careers.map(c => [c.id, c.name, c.result && c.result.msg])), JSON.stringify(S.interests), S.error].join('|');
+  if (key === renderedKey && !['preparing', 'checking', 'designing', 'careering'].includes(S.stage)) return;
   renderedKey = key;
   const body = $('step-body');
   body.innerHTML = [renderChapter, renderLearn, renderPractise, renderResults, renderCareers][step]();
@@ -441,26 +449,89 @@ function renderResults() {
     ${cards}
     <div class="row"><button class="btn" onclick="nextRound()">Practise again in a new way</button>
       <button class="btn ghost" onclick="goStep(2)">Retry these questions</button>
-      ${S.careers.length ? `<button class="btn ghost" onclick="goStep(4)">See it in the real world →</button>` : ''}</div>
+      <button class="btn ghost" onclick="goStep(4)">${S.careers.length ? 'Your career missions →' : 'Where does this lead? →'}</button></div>
     ${S.error ? `<div class="error">${esc(S.error)}</div>` : ''}`;
 }
 
+let picking = null;  // interests being chosen, before saving
+
 function renderCareers() {
-  if (!S.careers.length) return `<div class="card"><h2>Real world</h2><p class="lead">Master a concept and your colleague will show you where it is used in a real career.</p></div>`;
-  return S.careers.map(c => `<div class="card">
-    <div class="chain">${c.chain.map(esc).join(' → ')}</div>
-    <p style="margin:0">${esc(c.explain)}</p>
+  const opts = S.interest_options || {}, mine = S.interests || [];
+  if (S.stage === 'careering') {
+    return `<div class="card"><div class="working"><div class="spinner"></div><div>
+      <h2>Finding careers for you</h2><p class="lead">The Career guide is matching what you've mastered to careers you'd enjoy and setting you a mission. The Reviewer checks every number before you see it.</p>
+      ${recentTicker()}</div></div></div>`;
+  }
+  const chosen = picking ?? mine;
+  const picker = `<div class="card"><h2>Where this maths takes you</h2>
+    <p class="lead">${mine.length ? 'Your interests' : 'What are you into? Pick a few and your colleague will find careers that use the maths you\'ve mastered.'}</p>
+    <div class="chips">${Object.entries(opts).map(([k, v]) => `<button class="chip pick ${chosen.includes(k) ? 'on' : ''}"
+       aria-pressed="${chosen.includes(k)}" onclick="toggleInterest('${k}')">${esc(v)}</button>`).join('')}</div>
+    ${picking !== null || !mine.length ? `<div class="row"><button class="btn" ${chosen.length ? '' : 'disabled'} onclick="saveInterests()">Find my careers</button></div>` : ''}
+    ${S.error ? `<div class="error">${esc(S.error)}</div>` : ''}</div>`;
+  const missions = S.careers.map(c => {
+    const proven = c.result && c.result.ok;
+    return `<div class="card mission">
+    <div class="head"><div><div class="muted" style="font-size:13px">Mission · ${esc(c.concept_name)}</div>
+      <h2 style="margin:2px 0 0">${esc(c.name)}: ${esc(c.title)}</h2></div>${proven ? '<span class="tag good">Proven by hand</span>' : ''}</div>
+    <p class="muted" style="margin:6px 0 0;font-size:14px">${esc(c.why)}</p>
+    <div class="brief">${esc(c.brief)}</div>
     <div class="career-grid">
-      <div><b>The code a ${esc(c.chain[3].toLowerCase())} would write</b><pre>${esc(c.code)}</pre>
-        <div style="font-size:14px"><b>Output:</b> <code>${esc(c.output)}</code></div></div>
-      <div><b>Your turn: prove it by hand</b><div class="task">${esc(c.task)}</div>
-        <textarea class="mono" rows="4" data-hand="${c.concept}" style="margin-top:10px" aria-label="Your hand maths"></textarea>
+      <div>
+        <b>What if…?</b> <span class="muted" style="font-size:13px">Move a slider and the ${esc(c.name.toLowerCase())}'s code runs again.</span>
+        ${c.whatif.map(w => `<label class="slider"><span>${esc(w.label)}: <b id="wv-${c.id}-${w.name}">${c.params[w.name]}</b></span>
+          <input type="range" min="${w.min}" max="${Math.min(w.max, Math.max(c.params[w.name] * 3, w.min + 20))}" value="${c.params[w.name]}"
+            oninput="whatIf('${c.id}','${w.name}',this.value)"></label>`).join('')}
+        <div class="whatif-out" id="wo-${c.id}"><code>${esc(c.output)}</code></div>
+        <details><summary>See the code</summary><pre>${esc(c.code)}</pre></details>
+      </div>
+      <div><b>Your turn: prove it by hand</b>
+        <div class="task">${esc(c.task)}</div>
+        <textarea class="mono" rows="4" data-hand="${c.id}" style="margin-top:10px" aria-label="Your hand maths for ${esc(c.name)}"
+          placeholder="${esc(c.check[0])} = …"></textarea>
         <div class="row">
-          <button class="chip" onclick="loadHand('${c.concept}','hand')">Sample hand maths</button>
-          <button class="chip" onclick="loadHand('${c.concept}','hand_fixed')">Corrected</button>
-          <button class="btn small" onclick="checkHand('${c.concept}')">Check my hand maths</button></div>
+          <span class="muted" style="font-size:12px">Demo:</span>
+          <button class="chip" onclick="demoHand('${c.id}',true)">With a slip</button>
+          <button class="chip" onclick="demoHand('${c.id}',false)">Correct</button>
+          <button class="btn small" onclick="checkHand('${c.id}')">Check my hand maths</button></div>
         ${c.result ? `<div class="verdict ${c.result.ok ? 'ok' : 'bad'}"><b>Reviewer:</b> ${esc(c.result.msg)}</div>` : ''}
-      </div></div></div>`).join('');
+      </div>
+    </div></div>`; }).join('');
+  const none = mine.length && !S.careers.length ? `<div class="card"><p class="lead" style="margin:0">Master a concept in Practise and the Career guide will set you a mission. Your pathways below show what each career needs.</p></div>` : '';
+  const paths = (S.pathways || []).slice(0, 6).map(pw => `<div class="pathway">
+      <div class="head"><b>${esc(pw.name)}</b>${pw.match.length ? `<span class="tag good">matches ${pw.match.map(m => esc(opts[m] || m)).join(', ')}</span>` : ''}
+        <span class="muted" style="margin-left:auto">${pw.done}/${pw.total} Grade 10 concepts</span></div>
+      <div class="bar"><i style="width:${Math.round(100 * pw.done / pw.total)}%"></i></div>
+      <div class="muted" style="font-size:13px;margin:6px 0">${esc(pw.about)}</div>
+      <div class="chips">${pw.needs.map(n => `<span class="tag ${n.level === 'understood' ? 'good' : ''}">${n.level === 'understood' ? '✓ ' : ''}${esc(n.name)}</span>`).join('')}</div>
+      <div style="font-size:13px;margin-top:6px"><b>Useful school subjects:</b> ${esc(pw.subjects)}</div></div>`).join('');
+  return picker + missions + none + (mine.length ? `<div class="card"><h3>Your career pathways</h3>
+      <p class="muted" style="margin:0 0 6px;font-size:14px">Each bar fills as you master the Grade 10 maths that career builds on.</p>${paths}</div>` : '');
+}
+
+function toggleInterest(k) {
+  const cur = picking ?? [...(S.interests || [])];
+  picking = cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k];
+  renderedKey = ''; render();
+}
+async function saveInterests() {
+  const body = new FormData(); body.append('interests', JSON.stringify(picking ?? S.interests));
+  const r = await fetch('/api/interests', { method: 'POST', body });
+  if (!r.ok) return alertBox((await r.json()).detail);
+  picking = null; renderedKey = ''; startPolling();
+}
+let whatTimer = {};
+function whatIf(id, name, value) {
+  $(`wv-${id}-${name}`).textContent = value;
+  const card = S.careers.find(c => c.id === id);
+  card._what = { ...(card._what || {}), [name]: Number(value) };
+  clearTimeout(whatTimer[id]);
+  whatTimer[id] = setTimeout(async () => {
+    const body = new FormData(); body.append('card', id); body.append('params', JSON.stringify(card._what));
+    const r = await fetch('/api/career/whatif', { method: 'POST', body });
+    const d = r.ok ? await r.json() : { ok: false, msg: 'Could not run the code.' };
+    $(`wo-${id}`).innerHTML = d.ok ? `<code>${esc(d.output)}</code>` : `<span class="muted">${esc(d.msg)}</span>`;
+  }, 150);
 }
 
 // keep typed text across re-renders
@@ -548,9 +619,9 @@ function venn(v) {
 }
 
 function reveal(id, n) { revealed[id] = (revealed[id] ?? 1) + n; renderedKey = ''; render(); }
-async function loadHand(concept, name) { answers['hand:' + concept] = await (await fetch('/api/sample/' + name)).text(); renderedKey = ''; render(); }
-async function checkHand(concept) {
-  const body = new FormData(); body.append('concept', concept); body.append('working', answers['hand:' + concept] || '');
+async function demoHand(id, slip) { answers['hand:' + id] = await (await fetch(`/api/career/demo/${id}?slip=${slip}`)).text(); renderedKey = ''; render(); }
+async function checkHand(id) {
+  const body = new FormData(); body.append('card', id); body.append('working', answers['hand:' + id] || '');
   const r = await fetch('/api/career/check', { method: 'POST', body });
   if (!r.ok) return alertBox((await r.json()).detail);
   await poll();
@@ -657,7 +728,7 @@ $('reset').onclick = async () => {
   await poll();
   if (S.chapter) step = Object.keys(S.results).length ? 3 : 1;
   renderedKey = ''; render();
-  if (['preparing', 'checking', 'designing'].includes(S.stage)) startPolling();
+  if (['preparing', 'checking', 'designing', 'careering'].includes(S.stage)) startPolling();
 })();
 </script>
 </body>

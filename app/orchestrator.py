@@ -6,6 +6,7 @@ import time
 from . import brain as brainstore
 from . import learner, recall
 from .agents import Checker, Planner, Reviewer, explain
+from . import career as careers_mod
 from .career import CareerGuide, check_hand_maths, record_proof
 from .mathcheck import fmt
 from .tutor import Tutor
@@ -14,7 +15,7 @@ from .tutor import Tutor
 class Session:
     def __init__(self):
         self.events = []
-        self.stage = "start"  # start | preparing | ready | checking | checked | designing | error
+        self.stage = "start"  # start | preparing | ready | checking | checked | designing | careering | error
         self.error = ""
         self.chapter = None
         self.results = {}
@@ -43,6 +44,8 @@ class Session:
                     "round": self.round, "round_plan": self.round_plan, "round_ids": self.round_ids(),
                     "chapter": chapter, "results": self.results, "counters": self.counters,
                     "brain": self.brain, "careers": self.careers, "recalls": self.recalls,
+                    "pathways": careers_mod.pathways(self.brain), "interests": careers_mod.interests(self.brain),
+                    "interest_options": careers_mod.catalogue()["interests"],
                     "learner": learner.view(self.brain), "noticed": self.noticed}
 
     def round_ids(self):
@@ -174,8 +177,11 @@ class Session:
                 self.log("Planner", "reason", "Some problems are not yet understood, so before moving on I am asking "
                                               "the brain whether an earlier topic is the cause.")
                 self.recalls = recall.run(self.brain, keymap, chapter, latest, self.log)
-            self.log("Brain", "handoff", "Handing understood concepts to the Career guide.")
-            self.careers = CareerGuide(self.log).offer(self.brain)
+            if careers_mod.interests(self.brain):
+                self.log("Brain", "handoff", "Handing your mastered concepts and interests to the Career guide.")
+                self.careers = CareerGuide(self.log, self.counters).plan(self.brain)
+            else:
+                self.log("Career guide", "info", "Pick your interests in Real world and I will find careers that use what you mastered.")
             self.log("Orchestrator", "done", "Checked. Your results and next steps are ready.")
             self.stage = "checked"
         except Exception as e:
@@ -201,18 +207,36 @@ class Session:
             self._fail(e)
             self.stage = "checked"
 
-    def check_career(self, concept, text):
-        """Student uploads hand maths for a career task; the Reviewer checks it against the code."""
-        card = next((c for c in self.careers if c["concept"] == concept), None)
+    def plan_careers(self, chosen=None):
+        """The student picked interests (or asked again): the Career guide plans missions for them."""
+        prev, self.stage, self.error = self.stage, "careering", ""
+        try:
+            if chosen is not None:
+                picked = careers_mod.set_interests(self.brain, chosen)
+                brainstore.save(self.brain)
+                names = careers_mod.catalogue()["interests"]
+                self.log("Brain", "learn", f"Saved your interests: {', '.join(names[i] for i in picked) or 'none'}.")
+            self.careers = CareerGuide(self.log, self.counters).plan(self.brain)
+        except Exception as e:
+            self._fail(e)
+        self.stage = prev if prev in ("checked", "ready", "start") else "checked"
+
+    def card(self, card_id):
+        card = next((c for c in self.careers if c["id"] == card_id), None)
         if card is None:
-            raise ValueError("No career task is open for that concept yet.")
+            raise ValueError("That mission is no longer open. Ask the Career guide for new missions.")
+        return card
+
+    def check_career(self, card_id, text):
+        """Student uploads hand maths for a mission; the Reviewer checks it against the code."""
+        card = self.card(card_id)
         self.log("Career guide", "handoff", f"Student uploaded hand maths for {card['chain'][1]}. Handing to the Reviewer.")
         res = check_hand_maths(card, text)
         if res["ok"]:
             self.log("Reviewer", "recheck", f"Hand maths verified. {res['msg']}")
             record_proof(self.brain, card)
             brainstore.save(self.brain)
-            self.log("Brain", "update", f"{card['name']} linked to career: {' → '.join(card['chain'][1:])} (proven by hand).")
+            self.log("Brain", "update", f"{card['concept_name']} linked to career: {' → '.join(card['chain'][1:])} (proven by hand).")
         else:
             self.log("Reviewer", "flag", f"Hand maths sent back to the student. {res['msg']}")
         card["result"] = res

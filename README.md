@@ -26,7 +26,7 @@ The language model reads text, writes material (checked in code before use) and 
 3. **Practise.** One answer box per question. Any valid method counts.
 4. **Results.** Marks are checked by the Reviewer (a corrected mark is shown as corrected), the brain is updated, and recall says what to revise first.
    **Practise again in a new way:** the Planner reads this round's results and chooses new forms for each concept (word problem, table, Venn diagram, list the outcomes, spot the mistake, work backwards, on the job). Weak concepts get two new forms, and understood ones get a stretch question. The Tutor writes them, and the Reviewer checks every question and its diagram or table before the student sees it. A spot-the-mistake question must really contain a mistake. The brain updates from the newest round, so a gap can become understood.
-5. **Real world.** Mastered concepts unlock a career link with real code and a by-hand proof.
+5. **Real world.** The student picks their interests (sport, health, tech, money, building, nature). For each mastered concept, the **Career guide** chooses up to two careers from a curated South African catalogue (`samples/careers.json`) that fit those interests and how the student learns, and sets a **mission** in that job. Missions are fixed, safe code templates (`app/missions.py`). The model only picks whole-number inputs, which code range-checks, and writes the brief. The **Reviewer** rejects picks outside the catalogue, fixes invalid inputs, and sends back any brief that does not use the exact numbers the code runs on. The student can move **what-if sliders** to re-run the code, then proves the result by hand, and the Reviewer checks each line against the code. **Career pathways** show, for every career, how many of the Grade 10 concepts it builds on are mastered, plus useful school subjects.
 
 ## How the brain learns the student
 
@@ -52,7 +52,7 @@ The side panel "Your colleague at work" shows every agent action, every Reviewer
 | Tutor | Writes missing worked examples, memos and practice questions |
 | Checker | Marks each answer against the memo and names the exact step that went wrong |
 | Reviewer | Redoes all the maths itself: checks Tutor material, overturns wrong marks, checks career hand maths, and confirms or rejects recall guesses |
-| Career guide | For understood concepts: runs real code (Naive Bayes spam filter) and sets a by-hand task |
+| Career guide | Matches mastered concepts and interests to careers from a curated catalogue, sets a mission with real code and what-if inputs, and tracks career pathways |
 | Brain | Stores levels, history, notes, links and proven careers (`data/brain.json`). On a gap, it proposes the earlier topic that is the likely cause |
 
 Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/brain.py`, `app/recall.py`). The language model reads text, writes material and writes explanations. Everything it produces is checked in code before it is used.
@@ -62,11 +62,11 @@ Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/
 1. **My brain → Reset brain.** Choose the sample **Algebra**, then **Prepare**. Go to **Practise**, click **Fill sample answers**, then **Check**. The student multiplied like terms, so the brain saves a gap and the student's note.
 2. Choose **Euclidean geometry**, then do the same. P1 is traced back to algebra (confirmed, and the student's own note comes back). The algebra guess for P2 is rejected because the mistake is a geometry fact.
 3. Choose **Probability (with worked solutions)**, fill the sample answers, then check. P2 (a Venn-diagram method) is **flagged**, **fixed** and **re-checked**.
-4. **Real world:** check the sample hand maths (the Reviewer finds 1/16 should be 1/32), then the corrected version. The Data scientist node appears in **My brain**.
+4. **Real world:** pick interests (e.g. Sport, Tech and data). The Career guide sets two missions, such as a sports analyst's success-rate model and a data scientist's spam filter. Move a what-if slider, then use **Demo: With a slip** and check it (the Reviewer names the wrong line), then **Correct** (proven by hand, and the career appears in **My brain**).
 5. On Results, click **Practise again in a new way**. The Planner's reasons appear above round 2, which uses diagrams, tables and spot-the-mistake questions. Answer them correctly and Complementary events moves from gap to understood.
 6. Keep going for another round. The like-terms mistake from algebra and geometry is planted in a spot-the-mistake question. Once the Reviewer has proven the student's short answers right twice, the Checker announces that it now accepts their methods, and the corrections stop. Open **My brain → How you learn**.
 7. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
 
 ## Using your own data
 
-Plain text works. Label concepts `Concept C1: name` and problems `Problem P1 (C1): question`, then `Worked solution:` (or `Memo:`) with one calculation per line, or `Example E1 (C1): ...` for worked examples. Unlabelled chapters are read by the language model, and anything missing is written by the Tutor. Add `(uses: Topic name)` to a solution line so recall can trace that step to an earlier topic. Edit `samples/curriculum.json` to change the starting topic map, and `samples/careers.json` to add career links.
+Plain text works. Label concepts `Concept C1: name` and problems `Problem P1 (C1): question`, then `Worked solution:` (or `Memo:`) with one calculation per line, or `Example E1 (C1): ...` for worked examples. Unlabelled chapters are read by the language model, and anything missing is written by the Tutor. Add `(uses: Topic name)` to a solution line so recall can trace that step to an earlier topic. Edit `samples/curriculum.json` to change the starting topic map, and `samples/careers.json` to add careers (missions must be keys in `app/missions.py`). Set `VB_BRAIN_PATH` to use a different brain file, for example for testing.

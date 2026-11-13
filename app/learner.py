@@ -29,7 +29,10 @@ VISUAL_FORMS = {"venn", "table", "sample_space"}
 
 
 def _profile(brain: dict) -> dict:
-    return brain.setdefault("learner", {"traits": {}, "mistakes": {}, "forms": {}})
+    prof = brain.setdefault("learner", {})
+    for part in ("traits", "mistakes", "forms"):  # other modules (e.g. careers) may create the section first
+        prof.setdefault(part, {})
+    return prof
 
 
 def _ops(expr: str):

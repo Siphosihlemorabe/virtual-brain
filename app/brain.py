@@ -1,13 +1,14 @@
 """The learner's virtual brain: a growing map of concepts, levels, notes and links.
 All updates are plain code so they are reliable and explainable."""
 import json
+import os
 import re
 import threading
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-PATH = ROOT / "data" / "brain.json"
+PATH = Path(os.environ.get("VB_BRAIN_PATH") or ROOT / "data" / "brain.json")  # override for tests
 SEED = ROOT / "samples" / "curriculum.json"
 RANK = {"gap": 0, "partly": 1, "understood": 2}
 _lock = threading.Lock()
