@@ -6,15 +6,17 @@ from pathlib import Path
 
 from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import brain as brainstore
 from . import career
-from . import llm
+from . import llm, simulate
 from .orchestrator import Session
 
 ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "samples"
 app = FastAPI(title="Virtual Brain")
+app.mount("/static", StaticFiles(directory=ROOT / "app" / "static"), name="static")
 current = Session()
 
 # Sample chapters a student can try, with optional sample answers and notes for the demo.
@@ -44,6 +46,11 @@ def _split(text: str, pattern: str) -> dict:
 @app.get("/")
 def index():
     return FileResponse(ROOT / "app" / "static" / "index.html")
+
+
+@app.get("/api/sim/events")
+def sim_events():
+    return simulate.catalogue()
 
 
 @app.get("/api/samples")

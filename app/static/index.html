@@ -156,6 +156,24 @@
   .bar i { display:block; height:100%; background:var(--ok); }
   .ev.learn { background:color-mix(in srgb, var(--a-brain) 12%, transparent); }
 
+  /* chance lab */
+  .labbox { margin-top:12px; } .labbox summary { font-size:15px; }
+  .lab { border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:8px; background:var(--bg); }
+  .lab-top { display:flex; gap:10px; flex-wrap:wrap; justify-content:space-between; align-items:center; font-size:14px; }
+  .lab-top select { margin-left:6px; padding:4px 8px; border-radius:8px; border:1px solid var(--line); background:var(--surface); }
+  .lab-stage { width:100%; height:210px; margin:8px 0 4px; border-radius:10px;
+               background:radial-gradient(ellipse at 50% 85%, var(--surface-2), transparent 70%); }
+  .lab-stage canvas { display:block; width:100% !important; }
+  .lab-flat { height:100%; display:grid; place-items:center; font-size:64px; }
+  .lab-last { font-size:14px; min-height:22px; } .lab-stats { font-size:14px; margin:8px 0 4px; }
+  .lab-buttons { margin-top:8px; }
+  .lab-chart { width:100%; height:110px; display:block; }
+  .lab-chart .theory { stroke:var(--accent); stroke-width:1.5; stroke-dasharray:5 4; }
+  .lab-chart .axis { stroke:var(--line); stroke-width:1; }
+  .lab-chart .exp { fill:none; stroke:var(--ok); stroke-width:2; vector-effect:non-scaling-stroke; }
+  .lab-chart .lbl { font:9px system-ui; fill:var(--muted); }
+  .lab-caption { font-size:12px; }
+
   /* careers */
   .chip.pick.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .mission .head, .pathway .head { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
@@ -247,6 +265,8 @@
   </aside>
 </div>
 
+<script src="/static/vendor/three.min.js"></script>
+<script src="/static/lab.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -326,6 +346,7 @@ function render() {
   const body = $('step-body');
   body.innerHTML = [renderChapter, renderLearn, renderPractise, renderResults, renderCareers][step]();
   restoreInputs();
+  mountLabs();
 }
 function goStep(i) { step = i; renderedKey = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
@@ -378,6 +399,8 @@ function renderLearn() {
               ? `<button class="btn ghost small" onclick="reveal('${e.id}',1)">Next step</button><button class="btn ghost small" onclick="reveal('${e.id}',99)">Show all</button>`
               : (e.explain ? `<div class="explain">💡 ${esc(e.explain)}</div>` : '')}</div>
           </div>`; }).join('') || '<p class="muted" style="font-size:14px">No worked example for this one yet.</p>'}
+        ${eventsFor(c).length ? `<details class="labbox" ontoggle="mountLabs()"><summary>🎲 See it happen in 3D</summary>
+          <div class="lab-host" data-lab="learn-${c.id}" data-events="${eventsFor(c).map(e => e.id).join(',')}"></div></details>` : ''}
         <div class="note-box"><label for="note-${c.id}">My notes on ${esc(c.name)}</label>
           <textarea id="note-${c.id}" rows="2" data-note="${c.id}" placeholder="In your own words…"></textarea></div>
       </div>`; }).join('') +
@@ -580,7 +603,20 @@ async function nextRound() {
 }
 
 const FORM_LABEL = { word: 'Word problem', table: 'Read the table', venn: 'Venn diagram', sample_space: 'List the outcomes',
-                     spot_mistake: 'Spot the mistake', reverse: 'Work backwards', career: 'On the job' };
+                     spot_mistake: 'Spot the mistake', reverse: 'Work backwards', career: 'On the job', simulate: 'Predict, then simulate' };
+
+let SIM = [];  // chance experiments from the server, with exact probabilities
+const slug = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const eventsFor = c => SIM.filter(e => e.concepts.includes(c.brain_key || slug(c.name)));
+function mountLabs() {
+  if (!window.Lab) return;
+  document.querySelectorAll('.lab-host').forEach(el => {
+    const d = el.closest('details');
+    if (d && !d.open) return;
+    Lab.mount(el, el.dataset.events.split(',').map(id => SIM.find(e => e.id === id)).filter(Boolean));
+  });
+  Lab.sweep();
+}
 const clean = l => esc(String(l).replace(/\(uses:[^)]*\)/i, '').trim());
 
 function visual(p) {
@@ -591,6 +627,10 @@ function visual(p) {
       <tbody>${v.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   }
   if (p.form === 'venn') return venn(v);
+  if (p.form === 'simulate' && v.event) {
+    return `<div class="vbox"><div class="muted" style="font-size:13px">Predict first: work out the exact probability in your answer box. Then run the experiment and see if the results agree.</div>
+      <div class="lab-host" data-lab="p-${p.id}" data-events="${esc(v.event)}"></div></div>`;
+  }
   if (p.form === 'sample_space' && Array.isArray(v.outcomes)) {
     return `<details class="vbox"><summary>Done listing? Check your list</summary>
       <div class="chips" style="margin-top:8px">${v.outcomes.map(o => `<span class="tag">${esc(o)}</span>`).join('')}</div>
@@ -725,6 +765,7 @@ $('reset').onclick = async () => {
   try { const v = localStorage.getItem('vb-log'); if (v !== null && window.innerWidth > 1050) open = v === '1'; } catch (e) {}
   setLog(open);
   samples = await (await fetch('/api/samples')).json();
+  try { SIM = await (await fetch('/api/sim/events')).json(); } catch (e) { SIM = []; }
   await poll();
   if (S.chapter) step = Object.keys(S.results).length ? 3 : 1;
   renderedKey = ''; render();

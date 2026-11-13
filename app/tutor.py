@@ -2,7 +2,7 @@
 Nothing it writes reaches the student until the Reviewer has checked it in code."""
 from . import llm
 from .mathcheck import evaluate, fmt, parse_steps
-from .practice import blind_text, plan_round, visual_problem, write_variants
+from .practice import FORMS, blind_text, plan_round, visual_problem, write_variants
 
 FORMAT = (
     "Format for every solution: a list of lines, one calculation per line, written as "
@@ -113,7 +113,8 @@ class Tutor:
             data = llm.complete_json(
                 "You are the Tutor agent. The Reviewer found these solutions wrong. Rewrite each solution correctly "
                 "(you may also fix the question if it is unclear). " + fmt_rules + "\n"
-                f"{[(it['tmp'], it.get('form', ''), it['question'], it.get('visual'), it['solution'], it['problem']) for it in failed]}\n"
+                f"{[(it['tmp'], it.get('form', ''), FORMS.get(it.get('form'), ('', None))[0], it['question'], it.get('visual'), it['solution'], it['problem']) for it in failed]}\n"
+                "Each item is (id, form, what that form requires, question, visual, solution, what the Reviewer found).\n"
                 'Return {"T1":{"question":"...","visual":{...} or null,"solution":["..."]}, ...}', timeout=120)
         except llm.LLMError as e:
             self.log(self.name, "warn", f"Rewrite failed ({e}).")

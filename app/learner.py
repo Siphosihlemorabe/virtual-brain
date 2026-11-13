@@ -14,7 +14,7 @@ TRAITS = {
     "concise": ("Works steps out in their head and writes fewer lines",
                 "The Checker does not mark down missing intermediate steps when the answer is proven right."),
     "visual": ("Thinks visually: draws diagrams, tables or lists",
-               "The Planner rebuilds weak concepts with Venn diagrams, tables and outcome lists."),
+               "The Planner rebuilds weak concepts with Venn diagrams, tables, outcome lists and 3D simulations."),
 }
 MISTAKES = {
     "multiplies_instead_of_adds": "Multiplies where they should add (e.g. like terms: 3x + 2x is 5x, not 6x)",
@@ -25,7 +25,7 @@ MISTAKES = {
     "wrong_value": "Uses a wrong rule or value (e.g. 360 instead of 180)",
 }
 MISTAKE_EFFECT = "The Planner plants this exact mistake in spot-the-mistake questions so you learn to catch it."
-VISUAL_FORMS = {"venn", "table", "sample_space"}
+VISUAL_FORMS = {"venn", "table", "sample_space", "simulate"}
 
 
 def _profile(brain: dict) -> dict:

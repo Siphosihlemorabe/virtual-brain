@@ -2,7 +2,7 @@
 which forms, why); the Tutor writes the questions; the Reviewer checks them, including their visuals."""
 from fractions import Fraction
 
-from . import learner, llm
+from . import learner, llm, simulate
 from .mathcheck import parse_steps
 
 # form -> (what the Tutor must write, which visual it must include)
@@ -19,11 +19,21 @@ FORMS = {
                      '{"flawed":["one calculation per line, with one mistake"]}'),
     "reverse": ("work backwards: give a probability and ask for an unknown count", None),
     "career": ("set inside a real South African job (e.g. a nurse, insurance assessor, data analyst, farmer)", None),
+    "simulate": ("a dice or coin experiment the student will predict and then run in a 3D simulator. Choose ONE "
+                 "experiment id from the list given with the request, set visual.event to it, and ask for exactly "
+                 "that experiment's probability (the question and the id must describe the same event)",
+                 '{"event":"<experiment id from the list>"}'),
 }
 LABELS = {"word": "Word problem", "table": "Read the table", "venn": "Venn diagram", "sample_space": "List the outcomes",
-          "spot_mistake": "Spot the mistake", "reverse": "Work backwards", "career": "On the job"}
+          "spot_mistake": "Spot the mistake", "reverse": "Work backwards", "career": "On the job",
+          "simulate": "Predict, then simulate"}
 STRETCH = ["spot_mistake", "reverse", "career"]
 VISUAL_FORMS = learner.VISUAL_FORMS
+
+
+def _slug(name: str) -> str:
+    import re
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
 def blind_text(it: dict) -> str:
@@ -39,6 +49,8 @@ def blind_text(it: dict) -> str:
         return f"{it['question']} Outcomes: {', '.join(map(str, v.get('outcomes', [])))}."
     if form == "spot_mistake" and v:
         return f"{it['question']} The learner's working: {' | '.join(v.get('flawed', []))}. Give the correct final answer."
+    if form == "simulate" and v and v.get("event") in simulate.EVENTS:
+        return f"{it['question']} (Experiment: {simulate.EVENTS[v['event']][2]}, fair dice/coins.)"
     return it["question"]
 
 
@@ -64,6 +76,14 @@ def visual_problem(it: dict, answer: Fraction):
             return "the sample space must list 2 to 36 different outcomes"
         if answer.denominator > 1 and len(out) % answer.denominator:
             return f"the answer {answer} cannot come from {len(out)} equally likely outcomes"
+    if form == "simulate":
+        if v.get("event") not in simulate.EVENTS:
+            return f"the experiment '{v.get('event')}' is not one the simulator can run"
+        truth = simulate.exact(v["event"])
+        if answer != truth:
+            return (f"I listed every outcome of '{simulate.EVENTS[v['event']][2]}': the exact probability is "
+                    f"{truth}, but the memo says {answer}. The question and the experiment do not match: either "
+                    f"pick the experiment id that matches the question, or ask exactly '{simulate.EVENTS[v['event']][2]}'")
     if form == "spot_mistake":
         flawed = parse_steps(v.get("flawed") or [])
         if not flawed:
@@ -142,6 +162,11 @@ def write_variants(chapter: dict, plan: list, topics: list, fmt_rules: str, log)
     """Tutor: one question per (concept, form) in the plan. Returns raw items for the Reviewer."""
     concepts = {c["id"]: c for c in chapter["concepts"]}
     def meaning(f, p):
+        if f == "simulate":
+            c = concepts[p["concept"]]
+            fits = [(e, simulate.EVENTS[e][2]) for e in simulate.EVENTS
+                    if (c.get("brain_key") or _slug(c["name"])) in simulate.EVENTS[e][3]] or simulate.menu()
+            return FORMS[f][0] + f". Experiments for this concept (id, event): {fits}"
         if f == "spot_mistake" and p.get("plant"):
             return FORMS[f][0] + f". The ONE mistake must be this kind: {learner.MISTAKES[p['plant']]}"
         return FORMS[f][0]
