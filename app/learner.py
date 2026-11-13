@@ -10,9 +10,9 @@ CONFIRM = 2
 
 TRAITS = {
     "own_methods": ("Solves problems their own valid way",
-                    "The Checker accepts any valid method from the start, not only the textbook's."),
+                    "Feedback and the Planner treat your method as valid, and show the book's method as a second route."),
     "concise": ("Works steps out in their head and writes fewer lines",
-                "The Checker does not mark down missing intermediate steps when the answer is proven right."),
+                "Marking never takes marks off for missing steps when the answer is proven right."),
     "visual": ("Thinks visually: draws diagrams, tables or lists",
                "The Planner rebuilds weak concepts with Venn diagrams, tables, outcome lists and 3D simulations."),
 }
@@ -100,10 +100,11 @@ def observe(brain: dict, chapter: dict, results: dict, work: dict, keymap: dict,
             stats["understood"] += r["level"] == "understood"
 
         overturned = r.get("checker", {}).get("level") not in (None, "understood") and r["level"] == "understood"
-        if overturned:
+        other_method = r["level"] == "understood" and (r.get("method") or {}).get("uses_book") is False
+        if overturned or other_method:
             fewer = len(parse_steps(lines)) < len(parse_steps(p["solution"]))
             key = "concise" if fewer else "own_methods"
-            add("traits", key, TRAITS[key][0], where, "Reviewer proved the answer right although it did not follow the memo")
+            add("traits", key, TRAITS[key][0], where, "a correct answer that did not follow the book's method")
         if re.search(r"\b(venn|diagram|table|tree|draw|drew|list(ed)?)\b", " ".join(lines), re.I):
             add("traits", "visual", TRAITS["visual"][0], where, "used a diagram, table or list in their working")
         if r["level"] in ("gap", "partly"):
@@ -114,13 +115,6 @@ def observe(brain: dict, chapter: dict, results: dict, work: dict, keymap: dict,
 
 
 # ---------------------------------------------------------------- what the agents read
-
-def accepts_own_methods(brain: dict) -> int:
-    """How often the student's own or shortened methods were proven right (0 if not yet confirmed)."""
-    t = _profile(brain)["traits"]
-    n = sum(len(t.get(k, {}).get("evidence", [])) for k in ("own_methods", "concise"))
-    return n if n >= CONFIRM else 0
-
 
 def recurring_mistakes(brain: dict) -> list:
     return [(k, v["label"], len(v["evidence"])) for k, v in _profile(brain)["mistakes"].items()

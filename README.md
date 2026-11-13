@@ -51,7 +51,7 @@ Besides concept levels and notes, the brain keeps a learner model (`app/learner.
 
 | Finding | Detected when | What the colleague then does |
 |---|---|---|
-| Solves problems their own valid way | The Reviewer proves an answer right that did not follow the memo | The Checker accepts any valid method from the start |
+| Solves problems their own valid way | A correct answer that did not use the book's method | Feedback treats it as valid and shows the book's method as a second route |
 | Works steps out in their head | The same, with fewer lines than the memo | The same |
 | Thinks visually | Working mentions a diagram, table or list | The Planner rebuilds weak concepts with visual forms |
 | Recurring mistake (multiplies instead of adds, miscounts outcomes, wrong total, wrong value, arithmetic slip) | The first wrong step is classified by comparing it with the memo | The Planner plants that exact mistake in a spot-the-mistake question, and the Reviewer checks that the planted mistake really is that type |
@@ -67,8 +67,8 @@ The side panel "Your colleague at work" shows every agent action, every Reviewer
 |---|---|
 | Planner | Reads the chapter, decides what is missing, plans the session and the marking order, and decides when to call recall |
 | Tutor | Writes missing worked examples, memos and practice questions |
-| Checker | Marks each answer against the memo and names the exact step that went wrong |
-| Reviewer | Redoes all the maths itself: checks Tutor material, overturns wrong marks, checks career hand maths, and confirms or rejects recall guesses |
+| Checker | The language model marks each answer: any valid method counts, and it notes whether the book's method was used. Without a model it marks from the arithmetic |
+| Reviewer | Redoes all the maths itself in code and overrules the Checker's model when it is wrong: checks Tutor material, overturns wrong marks, checks career hand maths, and confirms or rejects recall guesses |
 | Career guide | Matches mastered concepts and interests to careers from a curated catalogue, sets a mission with real code and what-if inputs, and tracks career pathways |
 | Brain | Stores levels, history, notes, links and proven careers (`data/brain.json`). On a gap, it proposes the earlier topic that is the likely cause |
 
@@ -78,11 +78,11 @@ Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/
 
 1. **My brain → Reset brain.** Choose the sample **Algebra**, then **Prepare**. Go to **Practise**, click **Fill sample answers**, then **Check**. The student multiplied like terms, so the brain saves a gap and the student's note.
 2. Choose **Euclidean geometry**, then do the same. P1 is traced back to algebra (confirmed, and the student's own note comes back). The algebra guess for P2 is rejected because the mistake is a geometry fact.
-3. Choose **Probability (with worked solutions)**, fill the sample answers, then check. P2 (a Venn-diagram method) is **flagged**, **fixed** and **re-checked**.
+3. Choose **Probability (with worked solutions)**, fill the sample answers, then check. P2 (a Venn-diagram method) is marked **understood, but not the book's method**: any valid method counts, and the card says which method the book teaches. The Reviewer verifies every mark in code; if the model marks something wrongly, you see the Reviewer's **flag**, the **fix** and the **re-check**.
 4. **Real world:** pick interests (e.g. Sport, Tech and data). The Career guide sets two missions, such as a sports analyst's success-rate model and a data scientist's spam filter. Move a what-if slider, then use **Demo: With a slip** and check it (the Reviewer names the wrong line), then **Correct** (proven by hand, and the career appears in **My brain**).
 4b. Open the **Spam Lab**: use **Demo: With a mistake** on the table (the Reviewer flags the mixed-up cells), then **Correct**; do the hand email; **Run the filter** and click a red-outlined email to see why it was misjudged; add *claim* and *prize* and run again.
 5. On Results, click **Practise again in a new way**. The Planner's reasons appear above round 2, which uses diagrams, tables and spot-the-mistake questions. Answer them correctly and Complementary events moves from gap to understood.
-6. Keep going for another round. The like-terms mistake from algebra and geometry is planted in a spot-the-mistake question. Once the Reviewer has proven the student's short answers right twice, the Checker announces that it now accepts their methods, and the corrections stop. Open **My brain → How you learn**.
+6. Keep going for another round. The like-terms mistake from algebra and geometry is planted in a spot-the-mistake question. Correct answers by other methods build the "own methods" trait. Open **My brain → How you learn**.
 7. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
 
 ## Using your own data

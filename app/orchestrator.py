@@ -4,7 +4,7 @@ import threading
 import time
 
 from . import brain as brainstore
-from . import learner, recall, spamlab
+from . import learner, llm, recall, spamlab
 from .agents import Checker, Planner, Reviewer, explain
 from . import career as careers_mod
 from .career import CareerGuide, check_hand_maths, record_proof
@@ -96,14 +96,21 @@ class Session:
 
     # ------------------------------------------------------------ phase 2: check the student's practice
 
-    FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "accept any valid method, not only the textbook's"),
-             "wrong_step": ({"align": "label"}, "match steps by what they calculate, not by position"),
-             "wrong_level": ({"align": "label"}, "match steps by what they calculate, not by position")}
+    # How the Checker re-marks when the Reviewer sends a mark back: from the verified arithmetic, any valid method.
+    FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "re-marked from the verified arithmetic: any valid method counts"),
+             "wrong_step": ({"align": "label", "accept_alternative": True}, "matched steps by what they calculate"),
+             "wrong_level": ({"align": "label", "accept_alternative": True}, "re-marked from the verified arithmetic")}
     MAX_ROUNDS = 2
 
-    def mark_and_review(self, p, lines, checker, reviewer, trust_methods=False):
+    def mark_and_review(self, p, lines, checker, reviewer):
         pid = p["id"]
-        mark = checker.check(p, lines, accept_alternative=trust_methods)
+        try:
+            mark = checker.model_mark(p, lines)
+        except (llm.LLMError, ValueError) as e:
+            self.log("Checker", "warn", f"{pid}: model marking unavailable ({e}); marking from the arithmetic instead.")
+            mark = checker.check(p, lines, accept_alternative=True)
+            mark["method"] = checker.code_method(p, lines)
+        method = mark.get("method")
         first = dict(mark)
         self.log("Checker", "mark", f"{pid}: {mark['level'].upper()}. {mark['detail']}", {"problem": pid, **mark})
         self.log("Checker", "handoff", f"Handing {pid} to the Reviewer.")
@@ -125,7 +132,7 @@ class Session:
                      f"({own.get('why', '')}). Reason: {rv['reason'].replace('_', ' ')}. Sending back to the Checker.")
             fix, policy = self.FIXES[rv["reason"]]
             mark = checker.check(p, lines, **fix)
-            self.log("Checker", "fix", f"Re-marked {pid} with new policy ({policy}): {mark['level'].upper()}. {mark['detail']}")
+            self.log("Checker", "fix", f"Re-marked {pid} ({policy}): {mark['level'].upper()}. {mark['detail']}")
         else:
             self.counters["human_interventions"] += 1
             self.log("Reviewer", "error", f"{pid}: Checker and Reviewer still disagree after {self.MAX_ROUNDS} rounds. "
@@ -133,6 +140,7 @@ class Session:
             mark = {"level": own["level"], "step": own["step"], "detail": own.get("why", "")}
         if mark["level"] != "understood":
             mark["detail"] = explain(p, lines, mark, self.log, learner.summary(self.brain))
+        mark["method"] = method if mark["level"] == "understood" else None
         self.results[pid] = {"concept": p["concept"], "checker": first, **mark}
 
     def check(self, answers: dict, notes: dict):
@@ -153,11 +161,6 @@ class Session:
             if not work:
                 raise ValueError("I could not find any working to check. Write your calculations in the answer boxes.")
             plan = planner.plan(chapter, work, known)
-            trust = learner.accepts_own_methods(self.brain)
-            if trust:
-                self.log("Checker", "learn", f"Your brain shows the Reviewer has proven your own or shortened methods right "
-                                             f"{trust} times, so I now accept any valid method from the start. "
-                                             "The Reviewer still checks every mark.")
             by_id = {p["id"]: p for p in chapter["problems"]}
             for step in plan:
                 p = by_id[step["target"]]
@@ -165,7 +168,7 @@ class Session:
                     if p["id"] not in checker.unreadable:
                         self.log("Planner", "ask", f"{p['id']} not attempted yet. It stays open for you.")
                     continue
-                self.mark_and_review(p, work[p["id"]], checker, reviewer, bool(trust))
+                self.mark_and_review(p, work[p["id"]], checker, reviewer)
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
             note_text = "\n".join(f"{cid}: {line}" for cid, txt in notes.items() for line in str(txt).splitlines()
                                   if line.strip())

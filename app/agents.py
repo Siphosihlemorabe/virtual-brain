@@ -1,5 +1,6 @@
-"""The agents. Each has one role. The language model only reads text and writes explanations;
-every mark and every number is decided in code (mathcheck)."""
+"""The agents. Each has one role. The language model reads text, writes explanations, and gives the Checker's
+first judgement of the student's working; every number is computed in code (mathcheck), and the Reviewer
+verifies every mark in code and overrules the model when it is wrong."""
 import re
 
 from . import llm
@@ -222,6 +223,47 @@ class Checker:
                     self.log(self.name, "warn", f"{pid}: I could not find a calculation or an answer in what you wrote.")
         self.log(self.name, "info", f"Read the student's working for {', '.join(sorted(work)) or 'no problems'}.")
         return work
+
+    def model_mark(self, problem: dict, student_lines: list) -> dict:
+        """The Checker's judgement by the language model: is the working right (by any valid method), and did
+        the student use the method the book teaches? The Reviewer verifies the verdict in code afterwards."""
+        steps = parse_steps(student_lines)
+        if not steps:
+            raise ValueError("no calculation to judge")
+        data = llm.complete_json(
+            "You are the Checker agent marking a South African Grade 10 learner's maths. ANY valid method counts as "
+            "correct. Separately, say whether the learner used the method the textbook is teaching.\n"
+            f"Question: {problem['question']}\n"
+            f"Textbook solution (the method being taught): {[l.split('(uses:')[0].strip() for l in problem['solution']]}\n"
+            f"Learner's working as written: {student_lines}\n"
+            f"Learner's calculation steps, numbered: {[(i + 1, s.text) for i, s in enumerate(steps)]}\n"
+            "level: 'understood' if the final answer is right and every step is valid; 'partly' if only the last "
+            "step slips; 'gap' if an earlier step is wrong. first_wrong_step: the number of the learner's first wrong "
+            "step, or null.\n"
+            'Return {"level":"understood|partly|gap","first_wrong_step":null,"uses_book_method":true,'
+            '"book_method":"a few words","student_method":"a few words","comment":"one short sentence to the learner"}',
+            timeout=60)
+        level = data.get("level") if isinstance(data, dict) else None
+        if level not in LEVELS:
+            raise ValueError(f"unexpected level {level!r}")
+        step = data.get("first_wrong_step")
+        step = step if isinstance(step, int) and 1 <= step <= len(steps) and level != "understood" else None
+        uses_book = bool(data.get("uses_book_method", True))
+        method = {"uses_book": uses_book, "book": str(data.get("book_method", ""))[:80],
+                  "student": str(data.get("student_method", ""))[:80], "comment": str(data.get("comment", ""))[:200]}
+        if level == "understood":
+            detail = (f"Correct, using the book's method ({method['book']})." if uses_book else
+                      f"Correct, but not the book's method: you used {method['student'] or 'your own method'} instead of "
+                      f"{method['book'] or 'the method taught'}.")
+        else:
+            detail = method["comment"] or "Not right yet."
+        return {"level": level, "step": step, "detail": detail, "method": method}
+
+    def code_method(self, problem: dict, student_lines: list) -> dict:
+        """Fallback when no model is available: the book's method means matching its steps."""
+        strict = self.check(problem, student_lines)
+        return {"uses_book": strict["level"] == "understood" or strict["detail"].startswith("Final answer"),
+                "book": "the textbook's steps", "student": "your own steps", "comment": ""}
 
     def check(self, problem: dict, student_lines: list, accept_alternative=False, align="index") -> dict:
         """Mark one problem. Default policy: the student must follow the textbook method step by step."""

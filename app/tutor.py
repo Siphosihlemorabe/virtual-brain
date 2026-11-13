@@ -52,10 +52,11 @@ class Tutor:
             self.log(self.name, "warn", f"I could not write the missing material ({e}). Continuing with what the chapter has.")
             return
 
-        ids = {c["id"] for c in concepts}
+        # accept only what was asked for: a model may add extra questions, which would change the round
+        ex_ids, prob_ids = {c["id"] for c in need_ex}, {c["id"] for c in need_prob}
         new = []
         for e in data.get("examples", []):
-            if e.get("concept") in ids:
+            if e.get("concept") in ex_ids:
                 new.append({"kind": "example", "concept": e["concept"], "question": e.get("question", ""),
                             "explain": e.get("explain", ""), "solution": e.get("solution") or []})
         for pid, sol in (data.get("memos") or {}).items():
@@ -64,9 +65,14 @@ class Tutor:
                 new.append({"kind": "memo", "target": p, "concept": p["concept"], "question": p["question"],
                             "solution": sol or []})
         for p in data.get("problems", []):
-            if p.get("concept") in ids:
+            if p.get("concept") in prob_ids:
                 new.append({"kind": "problem", "concept": p["concept"], "question": p.get("question", ""),
                             "solution": p.get("solution") or []})
+        extras = (sum(e.get("concept") not in ex_ids for e in data.get("examples", []))
+                  + sum(p.get("concept") not in prob_ids for p in data.get("problems", [])))
+        if extras:
+            self.log("Reviewer", "flag", f"The Tutor wrote {extras} item(s) nobody asked for. Discarded, so the "
+                                         "chapter's own practice stays as it is.")
         for i, it in enumerate(new):
             it["tmp"] = f"T{i + 1}"
         self.log(self.name, "info", f"Wrote {sum(i['kind'] == 'example' for i in new)} worked examples, "

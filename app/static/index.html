@@ -213,6 +213,8 @@
   .llmcalls .call { display:grid; grid-template-columns:1fr auto 64px; gap:8px; padding:1px 0; }
   .llmcalls .call.bad { color:var(--gap); }
 
+  .methodnote { font-size:13px; background:color-mix(in srgb, var(--a-tutor) 16%, var(--surface)); border-left:4px solid var(--a-tutor); border-radius:8px; padding:6px 10px; }
+
   /* careers */
   .chip.pick.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .mission .head, .pathway .head { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
@@ -627,8 +629,9 @@ function renderResults() {
     return `<div class="card result">
       <div class="head"><b>${esc(p.id)}</b><span class="tag">${esc(byConcept[p.concept] || '')}</span>${pill(r.level)}</div>
       <div class="muted" style="font-size:14px">${esc(p.question)}</div>
-      ${corrected ? `<div class="fixnote">🔁 The Checker first marked this <b>${esc(r.checker.level)}</b>. The Reviewer redid the maths, found your method was valid, and had it corrected.</div>` : ''}
-      <div>${esc(r.detail)}</div>
+      ${corrected ? `<div class="fixnote">🔁 The Checker first marked this <b>${esc(r.checker.level)}</b>. The Reviewer redid the maths in code and corrected it to <b>${esc(r.level)}</b>.</div>` : ''}
+      ${r.method && r.method.uses_book === false ? `<div class="methodnote">🧭 <b>Correct, but not the book's method.</b> You used ${esc(r.method.student || 'your own method')}; the book teaches ${esc(r.method.book || 'a different method')}. Both are valid, and knowing the book's way gives you a second route in a test.${r.method.comment ? `<br><span class="muted">${esc(r.method.comment)}</span>` : ''}</div>` : ''}
+      ${r.method && r.method.uses_book === false ? '' : `<div>${esc(r.detail)}</div>`}
       <details><summary>Show the memo</summary><ol class="steps">${p.solution.map(l => `<li>${esc(l.replace(/\(uses:[^)]*\)/i, '').trim())}</li>`).join('')}</ol></details>
     </div>`; }).join('');
   const recalls = S.recalls.map(r => `<div class="revise ${r.cause ? 'go' : 'stay'}"><b>${esc(r.problem)}: ${esc(r.message)}</b><br>
