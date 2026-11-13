@@ -80,6 +80,7 @@ def prepare(chapter: str = Form("")):
     global current
     _busy()
     current = Session()
+    current.stage = "preparing"
     threading.Thread(target=current.prepare, args=(chapter,), daemon=True).start()
     return {"ok": True}
 
@@ -93,6 +94,7 @@ def check(answers: str = Form("{}"), notes: str = Form("{}")):
         a, n = json.loads(answers), json.loads(notes)
     except json.JSONDecodeError:
         raise HTTPException(400, "Answers were not sent correctly.")
+    current.stage = "checking"
     threading.Thread(target=current.check, args=(a, n), daemon=True).start()
     return {"ok": True}
 
@@ -102,6 +104,7 @@ def practice_next():
     _busy()
     if current.chapter is None:
         raise HTTPException(400, "Open a chapter first.")
+    current.stage = "designing"
     threading.Thread(target=current.next_round, daemon=True).start()
     return {"ok": True}
 
@@ -118,7 +121,8 @@ def save_interests(interests: str = Form("[]")):
         chosen = json.loads(interests)
     except json.JSONDecodeError:
         raise HTTPException(400, "Interests were not sent correctly.")
-    threading.Thread(target=current.plan_careers, args=(chosen if isinstance(chosen, list) else [],), daemon=True).start()
+    prev, current.stage = current.stage, "careering"
+    threading.Thread(target=current.plan_careers, args=(chosen if isinstance(chosen, list) else [], prev), daemon=True).start()
     return {"ok": True}
 
 

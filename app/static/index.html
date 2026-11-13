@@ -301,17 +301,20 @@ async function pollOnce() {
   $('c-llm').textContent = s.llm;
   $('corrBadge').textContent = `${s.counters.reviewer_corrections} fix${s.counters.reviewer_corrections === 1 ? '' : 'es'}`;
   if (s.stage !== prevStage) onStage(s.stage, prevStage);
+  arrive();
   render();
   drawBrain();
   if (!busy) { clearInterval(timer); timer = null; }
 }
 function startPolling() { if (!timer) timer = setInterval(poll, 700); poll(); }
 
+let waitingFor = null;  // {stage, step}: where to take the student when their request finishes
 function onStage(stage, prev) {
-  if (stage === 'ready' && prev === 'preparing') step = 1;
-  if (stage === 'checked' && prev === 'checking') step = 3;
-  if (stage === 'ready' && prev === 'designing') step = 2;
   if (stage === 'start') step = 0;
+}
+function arrive() {
+  if (waitingFor && S.stage === waitingFor.stage) { step = waitingFor.step; waitingFor = null; renderedKey = ''; }
+  else if (waitingFor && S.stage === 'error') waitingFor = null;
 }
 
 function addEvent(e) {
@@ -582,6 +585,7 @@ async function prepare() {
   answers = { __chapter: keepChapter }; notes = {}; revealed = {}; sampleId = keepSample;
   await inflight;  // let any old-session request finish before resetting the log
   since = 0; evs = []; $('log').innerHTML = ''; renderedKey = '';
+  waitingFor = { stage: 'ready', step: 1 };
   startPolling();
 }
 async function fillSample(retry) {
@@ -593,12 +597,14 @@ async function check() {
   const body = new FormData(); body.append('answers', JSON.stringify(a)); body.append('notes', JSON.stringify(notes));
   const r = await fetch('/api/check', { method: 'POST', body });
   if (!r.ok) return alertBox((await r.json()).detail);
+  waitingFor = { stage: 'checked', step: 3 };
   startPolling();
 }
 async function nextRound() {
   const r = await fetch('/api/practice/next', { method: 'POST' });
   if (!r.ok) return alertBox((await r.json()).detail);
   step = 2; renderedKey = '';
+  waitingFor = { stage: 'ready', step: 2 };
   startPolling();
 }
 

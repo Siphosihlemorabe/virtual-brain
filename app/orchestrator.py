@@ -207,9 +207,10 @@ class Session:
             self._fail(e)
             self.stage = "checked"
 
-    def plan_careers(self, chosen=None):
+    def plan_careers(self, chosen=None, prev=None):
         """The student picked interests (or asked again): the Career guide plans missions for them."""
-        prev, self.stage, self.error = self.stage, "careering", ""
+        prev = prev or self.stage
+        self.stage, self.error = "careering", ""
         try:
             if chosen is not None:
                 picked = careers_mod.set_interests(self.brain, chosen)
