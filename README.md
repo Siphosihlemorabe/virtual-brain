@@ -9,6 +9,7 @@ pip install -r requirements.txt
 python -m uvicorn app.main:app --port 8000
 ```
 
+
 Open http://localhost:8000.
 
 The language model reads text, writes material (checked in code before use) and writes explanations. Choose it with `VB_LLM`:
