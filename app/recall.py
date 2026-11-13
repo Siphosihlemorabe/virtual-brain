@@ -37,6 +37,9 @@ def confirm(brain: dict, key: str, problem: dict, step_no, guess, names=None):
     """Reviewer's check of the brain's guess. Returns (cause_key or None, verdict text).
     names maps a topic name's slug to its brain key (chapter wording can differ from the brain's)."""
     skill = skill_of_wrong_step(problem, step_no)
+    if not step_no:
+        return None, ("there is no working to show which step went wrong, so I cannot trace it to an earlier topic. "
+                      "Show your working and I will check again")
     if not skill:
         level = brain["concepts"][guess]["level"]
         if level in ("gap", "partly"):

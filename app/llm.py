@@ -9,6 +9,8 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -60,16 +62,27 @@ def _gemini(prompt: str, timeout: int) -> str:
     key = _env("GEMINI_API_KEY")
     if not key:
         raise LLMError("GEMINI_API_KEY not set")
-    model = os.environ.get("VB_GEMINI_MODEL", "gemini-2.5-flash")
+    # gemini-2.5-flash is closed to new API users; the larger Flash models were timing out at the time of testing
+    model = _env("VB_GEMINI_MODEL") or "gemini-3.1-flash-lite"
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
-    req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": key})
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.load(resp)
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except Exception as e:  # network, quota, shape
-        raise LLMError(f"gemini error: {e}")
+    for attempt in range(3):  # Google returns 503/429 during demand spikes; these usually clear in seconds
+        req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "x-goog-api-key": key})
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.load(resp)
+            return "".join(p.get("text", "") for p in data["candidates"][0]["content"]["parts"])
+        except urllib.error.HTTPError as e:
+            try:
+                msg = json.loads(e.read().decode()).get("error", {}).get("message", "")
+            except (ValueError, AttributeError):
+                msg = ""
+            if e.code in (429, 503) and attempt < 2:
+                time.sleep(3 * (attempt + 1))
+                continue
+            raise LLMError(f"gemini {model} HTTP {e.code}: {msg[:200] or e.reason}")
+        except Exception as e:  # network, timeout, unexpected reply shape
+            raise LLMError(f"gemini {model} error: {e}")
 
 
 def complete(prompt: str, timeout: int = 90) -> str:

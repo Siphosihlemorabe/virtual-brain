@@ -16,7 +16,7 @@ The language model reads text, writes material (checked in code before use) and 
 | `VB_LLM` | What it uses |
 |---|---|
 | `claude` (default) | the local `claude` CLI (`VB_CLAUDE_MODEL`, default `sonnet`) |
-| `gemini` | the Gemini API (`GEMINI_API_KEY`, `VB_GEMINI_MODEL`, default `gemini-2.5-flash`) |
+| `gemini` | the Gemini API (`GEMINI_API_KEY`, `VB_GEMINI_MODEL`, default `gemini-3.1-flash-lite`). `gemini-2.5-flash` is closed to new API users. Busy errors (503/429) are retried. |
 | `mock` | no model, fully offline. Every model step has a rule-based fallback |
 
 ## How a session works
