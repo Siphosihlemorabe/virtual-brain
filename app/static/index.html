@@ -209,6 +209,10 @@
   .sl-why { margin-top:10px; } .sl-why p { font-size:14px; margin:6px 0 0; }
   .sl-why-box { border:1px solid var(--line); border-radius:12px; padding:12px; margin-top:12px; }
 
+  .llmcalls { padding:6px 16px 8px; border-bottom:1px solid var(--line); font-size:12px; }
+  .llmcalls .call { display:grid; grid-template-columns:1fr auto 64px; gap:8px; padding:1px 0; }
+  .llmcalls .call.bad { color:var(--gap); }
+
   /* careers */
   .chip.pick.on { background:var(--accent); color:var(--accent-ink); border-color:var(--accent); }
   .mission .head, .pathway .head { display:flex; gap:10px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; }
@@ -421,6 +425,7 @@
         <div><b id="c-llm">–</b><small>Language model</small></div>
       </div>
     </div>
+    <div id="llmcalls" class="llmcalls" aria-label="Recent language model calls"></div>
     <div id="log" aria-live="polite"></div>
   </aside>
 </div>
@@ -460,6 +465,11 @@ async function pollOnce() {
   $('c-corr').textContent = s.counters.reviewer_corrections;
   $('c-human').textContent = s.counters.human_interventions;
   $('c-llm').textContent = s.llm;
+  const L = s.llm_stats;
+  if (L) $('llmcalls').innerHTML = L.calls
+    ? `<div class="muted"><b>${esc(L.provider)}</b> · ${L.calls} call${L.calls === 1 ? '' : 's'} · avg ${L.avg ?? '–'}s${L.errors ? ` · <span style="color:var(--gap)">${L.errors} failed</span>` : ''}</div>`
+      + L.recent.map(c => `<div class="call ${c.ok ? '' : 'bad'}" title="${esc(c.error || '')}"><span>${esc(c.who)}</span><b>${c.secs}s</b>${c.ok ? '' : ' ✗'}<span class="muted">${esc(c.at)}</span></div>`).join('')
+    : `<div class="muted">${esc(L.provider)} · no model calls yet</div>`;
   $('corrBadge').textContent = `${s.counters.reviewer_corrections} fix${s.counters.reviewer_corrections === 1 ? '' : 'es'}`;
   if (s.stage !== prevStage) onStage(s.stage, prevStage);
   arrive();

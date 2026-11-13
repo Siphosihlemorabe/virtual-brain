@@ -85,13 +85,50 @@ def _gemini(prompt: str, timeout: int) -> str:
             raise LLMError(f"gemini {model} error: {e}")
 
 
+# Timing of every model call, shown in the side panel so response times are visible.
+_CALLS = []
+_WHO = {"verify": "Reviewer", "explain": "Checker", "plan_round": "Planner", "write_variants": "Tutor",
+        "_review_briefs": "Career guide", "read_answers": "Checker", "_read_with_model": "Planner", "_rewrite": "Tutor"}
+_CLASS = {"Planner": "Planner", "Checker": "Checker", "Tutor": "Tutor", "CareerGuide": "Career guide"}
+
+
+def _caller() -> str:
+    """Which agent asked: the first frame outside this module, named by its class or function."""
+    import inspect
+    for f in inspect.stack()[2:8]:
+        if f.filename.endswith("llm.py"):
+            continue
+        if f.function in _WHO:
+            return _WHO[f.function]
+        owner = f.frame.f_locals.get("self")
+        if owner is not None and type(owner).__name__ in _CLASS:
+            return _CLASS[type(owner).__name__]
+        return f.function
+    return "?"
+
+
+def stats() -> dict:
+    done = [c for c in _CALLS if c["ok"]]
+    return {"provider": provider(), "calls": len(_CALLS), "errors": len(_CALLS) - len(done),
+            "avg": round(sum(c["secs"] for c in done) / len(done), 1) if done else None,
+            "recent": _CALLS[-6:][::-1]}
+
+
 def complete(prompt: str, timeout: int = 90) -> str:
     p = provider()
-    if p == "claude":
-        return _claude(prompt, timeout)
-    if p == "gemini":
-        return _gemini(prompt, timeout)
-    raise LLMError("offline mode (VB_LLM=mock)")
+    if p not in ("claude", "gemini"):
+        raise LLMError("offline mode (VB_LLM=mock)")
+    who, t0 = _caller(), time.time()
+    try:
+        out = _claude(prompt, timeout) if p == "claude" else _gemini(prompt, timeout)
+        _CALLS.append({"who": who, "secs": round(time.time() - t0, 1), "ok": True, "at": time.strftime("%H:%M:%S")})
+        return out
+    except LLMError as e:
+        _CALLS.append({"who": who, "secs": round(time.time() - t0, 1), "ok": False, "at": time.strftime("%H:%M:%S"),
+                       "error": str(e)[:120]})
+        raise
+    finally:
+        del _CALLS[:-200]  # keep the list small
 
 
 def complete_json(prompt: str, timeout: int = 90):

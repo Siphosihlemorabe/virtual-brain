@@ -165,7 +165,7 @@ def practice_next():
 
 @app.get("/api/state")
 def state(since: int = 0):
-    return {**current.snapshot(since), "llm": llm.provider()}
+    return {**current.snapshot(since), "llm": llm.provider(), "llm_stats": llm.stats()}
 
 
 @app.post("/api/interests")
