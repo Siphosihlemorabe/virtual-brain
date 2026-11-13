@@ -3,6 +3,7 @@ import threading
 import time
 
 from . import brain as brainstore
+from . import recall
 from .career import CareerGuide, check_hand_maths, record_proof
 from .agents import Checker, Planner, Reviewer, explain
 from .mathcheck import fmt
@@ -17,6 +18,7 @@ class Run:
         self.problems = []
         self.brain = brainstore.load()
         self.careers = []
+        self.recalls = []
         self.counters = {"reviewer_corrections": 0, "human_interventions": 0}
         self._lock = threading.Lock()
 
@@ -29,7 +31,7 @@ class Run:
         with self._lock:
             return {"status": self.status, "events": self.events[since:], "results": self.results,
                     "concepts": self.concepts, "problems": self.problems, "counters": self.counters,
-                    "brain": self.brain, "careers": self.careers}
+                    "brain": self.brain, "careers": self.careers, "recalls": self.recalls}
 
     # Policy the Checker switches to when the Reviewer sends a mark back, by the Reviewer's reason.
     FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "accept any valid method, not only the textbook's"),
@@ -92,7 +94,11 @@ class Run:
                     continue
                 self.mark_and_review(p, work[p["id"]], checker, reviewer)
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
-            brainstore.update(self.brain, chapter, self.results, notes_text, self.log)
+            keymap = brainstore.update(self.brain, chapter, self.results, notes_text, self.log)
+            if any(r["level"] in ("gap", "partly") for r in self.results.values()):
+                self.log("Planner", "reason", "Some problems are not yet understood, so before moving on I am asking "
+                                              "the brain whether an earlier topic is the cause.")
+                self.recalls = recall.run(self.brain, keymap, chapter, self.results, self.log)
             self.log("Brain", "handoff", "Handing understood concepts to the Career guide.")
             self.careers = CareerGuide(self.log).offer(self.brain)
             self.log("Orchestrator", "done", "Run complete.")

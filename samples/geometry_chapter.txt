@@ -1,0 +1,15 @@
+Chapter 7: Euclidean geometry (Grade 10)
+
+Concept C1: Euclidean geometry
+Angle facts: the angles in a triangle add up to 180 degrees, and angles on a straight line add up to 180 degrees. Many problems need algebra to find the unknown.
+
+Problem P1 (C1): The angles of a triangle are 2x, 3x and 4x. Find x.
+Worked solution:
+angle sum = 180 (uses: Euclidean geometry)
+coefficient of x = 2 + 3 + 4 = 9 (uses: Solving algebraic equations)
+x = 180/9 = 20 (uses: Solving algebraic equations)
+
+Problem P2 (C1): Two angles lie on a straight line. One is 110 degrees. Find the other.
+Worked solution:
+angles on a straight line = 180 (uses: Euclidean geometry)
+other angle = 180 - 110 = 70 (uses: Euclidean geometry)

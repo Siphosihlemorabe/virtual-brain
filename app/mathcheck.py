@@ -86,6 +86,7 @@ class Step:
     label: str  # e.g. "p(1or2)", "" if none
     exprs: list = field(default_factory=list)  # arithmetic segments of the "=" chain, in order
     values: list = field(default_factory=list)
+    uses: str = ""  # skill this step relies on, from a "(uses: ...)" tag in the worked solution
 
     @property
     def value(self):
@@ -111,6 +112,9 @@ def parse_steps(lines) -> list:
     """Turn lines like 'P(A or B) = 13/30 + 7/30 = 20/30' into Steps. Prose is skipped."""
     steps = []
     for line in lines:
+        tag = re.search(r"\(uses:\s*([^)]*)\)", line, flags=re.I)
+        uses = tag.group(1).strip() if tag else ""
+        line = re.sub(r"\(uses:[^)]*\)", "", line, flags=re.I)
         for chain in re.split(r"[,;]\s+|\.\s+|\.$", line):
             if "=" not in chain:
                 continue
@@ -123,5 +127,5 @@ def parse_steps(lines) -> list:
                     label = _label(p)
             if exprs:
                 shown = [q.strip() for i, q in enumerate(parts) if i == 0 or q.strip() != parts[i - 1].strip()]
-                steps.append(Step(" = ".join(shown), label, exprs, [evaluate(e) for e in exprs]))
+                steps.append(Step(" = ".join(shown), label, exprs, [evaluate(e) for e in exprs], uses))
     return steps

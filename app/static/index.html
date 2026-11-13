@@ -20,6 +20,7 @@
   button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 14px; font-weight:600; cursor:pointer; }
   button.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
   button:disabled { opacity:.5; cursor:default; }
+  select { padding:7px; border:1px solid var(--accent); border-radius:6px; color:var(--accent); background:#fff; font-weight:600; }
   .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
   .counters { display:flex; gap:12px; flex-wrap:wrap; }
   .counter { flex:1; min-width:130px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
@@ -62,8 +63,13 @@
     <label for="notes">Your own notes (optional, start a line with C1: to attach it to a concept)</label>
     <textarea id="notes" style="height:60px" placeholder="e.g. C2: I draw a Venn diagram first"></textarea>
     <div class="row">
-      <button class="secondary" id="sample">Load sample (probability)</button>
-      <button class="secondary" id="retry">Load improved working</button>
+      <select id="pick" aria-label="Sample data">
+        <option value="chapter|working|notes">Probability: first attempt</option>
+        <option value="chapter|working_retry|">Probability: improved working</option>
+        <option value="algebra_chapter|algebra_working|algebra_notes">Algebra (earlier topic)</option>
+        <option value="geometry_chapter|geometry_working|">Euclidean geometry</option>
+      </select>
+      <button class="secondary" id="sample">Load sample</button>
       <button id="run">Run agents</button>
       <span id="status" class="muted"></span>
     </div>
@@ -82,6 +88,7 @@
   <section class="card">
     <h2>3. Marks per problem</h2>
     <table><thead><tr><th>Problem</th><th>Concept</th><th>Mark</th><th>Why</th></tr></thead><tbody id="results"></tbody></table>
+    <div id="recalls"></div>
   </section>
 
   <section class="card">
@@ -106,14 +113,11 @@ document.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListene
 }));
 
 $('sample').onclick = async () => {
-  $('chapter').value = await (await fetch('/api/sample/chapter')).text();
-  $('working').value = await (await fetch('/api/sample/working')).text();
-  $('notes').value = await (await fetch('/api/sample/notes')).text();
-};
-$('retry').onclick = async () => {
-  $('chapter').value = await (await fetch('/api/sample/chapter')).text();
-  $('working').value = await (await fetch('/api/sample/working_retry')).text();
-  $('notes').value = '';
+  const [c, w, n] = $('pick').value.split('|');
+  const get = async name => name ? (await fetch('/api/sample/' + name)).text() : '';
+  $('chapter').value = await get(c);
+  $('working').value = await get(w);
+  $('notes').value = await get(n);
 };
 $('reset').onclick = async () => {
   const r = await fetch('/api/brain/reset', { method: 'POST' });
@@ -157,6 +161,10 @@ async function poll() {
   }).join('');
   drawBrain(s.brain);
   drawCareers(s.careers);
+  $('recalls').innerHTML = s.recalls.length ? '<h2 style="margin-top:14px">Revise first</h2>' + s.recalls.map(r => `
+    <div class="verdict ${r.cause ? 'ok' : 'bad'}"><b>${esc(r.problem)} · ${esc(r.message)}</b><br>
+      <span class="muted">Brain guessed ${esc(r.guess)}. Reviewer ${r.cause ? (r.confirmed ? 'confirmed' : 'corrected') : 'rejected'}: ${esc(r.why)}.</span>
+      ${r.notes.length ? `<br>Your own note: “${esc(r.notes[r.notes.length - 1])}”` : ''}</div>`).join('') : '';
   if (s.status !== 'running') { clearInterval(timer); $('run').disabled = false; }
 }
 let careerKey = '';

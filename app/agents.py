@@ -54,11 +54,14 @@ class Planner:
             'Return {"subject":"...","concepts":[{"id":"C1","name":"...","summary":"one sentence",'
             '"brain_key":"key or null","builds_on":["key"]}],'
             '"problems":[{"id":"P1","concept":"C1","question":"...","solution":["one calculation per line"]}]}.\n'
-            "Copy each worked-solution line exactly as written, in the form 'P(...) = expression = value'. "
+            "Copy each worked-solution line exactly as written, including any '(uses: ...)' tag. "
             "Do not change, add or correct any number.\n\nCHAPTER:\n" + text)
         if not isinstance(data, dict):
             raise ValueError("unexpected shape")
         self._validate(data, text)
+        tags = sum(line.count("(uses:") for p in data["problems"] for line in p["solution"])
+        if tags < text.count("(uses:"):
+            raise ValueError("model dropped the (uses: ...) skill tags from worked solutions")
         return data
 
     @staticmethod

@@ -23,7 +23,9 @@ def index():
 def sample(name: str):
     files = {"chapter": "probability_chapter.txt", "working": "student_working.txt", "notes": "student_notes.txt",
              "working_retry": "student_working_retry.txt", "hand": "student_hand_maths.txt",
-             "hand_fixed": "student_hand_maths_fixed.txt"}
+             "hand_fixed": "student_hand_maths_fixed.txt", "algebra_chapter": "algebra_chapter.txt",
+             "algebra_working": "algebra_working.txt", "algebra_notes": "algebra_notes.txt",
+             "geometry_chapter": "geometry_chapter.txt", "geometry_working": "geometry_working.txt"}
     if name not in files:
         raise HTTPException(404)
     return (ROOT / "samples" / files[name]).read_text(encoding="utf-8")

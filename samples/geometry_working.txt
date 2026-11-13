@@ -1,0 +1,6 @@
+P1: angle sum = 180
+coefficient of x = 2 * 3 * 4 = 24
+x = 180/24 = 7.5
+
+P2: angles on a straight line = 360
+other angle = 360 - 110 = 250

@@ -2,8 +2,8 @@
   "_about": "Starting map of topics the brain knows about. 'builds_on' lists prerequisite topics. Edit freely.",
   "concepts": {
     "fractions": {"name": "Fractions", "subject": "Number", "builds_on": []},
-    "algebraic-equations": {"name": "Solving algebraic equations", "subject": "Algebra", "builds_on": ["fractions"]},
-    "euclidean-geometry": {"name": "Euclidean geometry", "subject": "Geometry", "builds_on": ["algebraic-equations"]},
+    "solving-algebraic-equations": {"name": "Solving algebraic equations", "subject": "Algebra", "builds_on": ["fractions"]},
+    "euclidean-geometry": {"name": "Euclidean geometry", "subject": "Geometry", "builds_on": ["solving-algebraic-equations"]},
     "basic-probability": {"name": "Basic probability", "subject": "Probability", "builds_on": ["fractions"]},
     "addition-rule-for-inclusive-events": {"name": "Addition rule for inclusive events", "subject": "Probability", "builds_on": ["basic-probability"]},
     "complementary-events": {"name": "Complementary events", "subject": "Probability", "builds_on": ["basic-probability"]}

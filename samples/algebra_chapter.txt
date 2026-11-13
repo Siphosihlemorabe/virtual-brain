@@ -1,0 +1,13 @@
+Chapter 4: Algebra (Grade 10)
+
+Concept C1: Solving algebraic equations
+To solve an equation, first collect like terms: 3x + 2x = 5x, because you add the numbers in front of x. Then do the opposite operation to both sides to get x alone.
+
+Problem P1 (C1): Solve 3x + 2x = 20.
+Worked solution:
+coefficient of x = 3 + 2 = 5
+x = 20/5 = 4
+
+Problem P2 (C1): Solve x + 7 = 12.
+Worked solution:
+x = 12 - 7 = 5
