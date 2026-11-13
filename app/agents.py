@@ -188,3 +188,76 @@ class Checker:
         return {"level": level, "step": step + 1,
                 "detail": f"Final answer {fmt(s_final)} should be {fmt(t_final)}. Went wrong at step {step + 1}: "
                           f"wrote '{wrote}', textbook has '{t[step].text}'."}
+
+
+# ---------------------------------------------------------------- Reviewer
+
+class Reviewer:
+    """Double-checks the Checker by redoing the maths itself, independent of the textbook's method."""
+    name = "Reviewer"
+
+    def __init__(self, log):
+        self.log = log
+
+    def own_verdict(self, problem: dict, student_lines: list) -> dict:
+        t, s = parse_steps(problem["solution"]), parse_steps(student_lines)
+        for i, ts in enumerate(t):
+            if not ts.consistent:
+                self.log(self.name, "warn", f"{problem['id']}: textbook step {i + 1} '{ts.text}' does not add up. "
+                                            "Using my own recomputation as the true answer.")
+        truth = t[-1].values[0]  # recomputed from the expression, not copied from the stated answer
+        if not s:
+            return {"level": "gap", "step": None, "truth": truth}
+        slips = [i for i, x in enumerate(s) if not x.consistent]
+        if s[-1].value == truth:
+            if slips:
+                return {"level": "partly", "step": slips[0] + 1, "truth": truth,
+                        "why": f"right answer but step {slips[0] + 1} '{s[slips[0]].text}' does not add up"}
+            return {"level": "understood", "step": None, "truth": truth,
+                    "why": f"every step is arithmetically valid and the answer {fmt(truth)} is correct"}
+        # wrong answer: find where it first goes wrong, matching steps by what they compute (label)
+        step = None
+        if slips:
+            step = slips[0]
+        else:
+            for ts in t:
+                ss = next((x for x in s if x.label and x.label == ts.label), None)
+                if ss is not None and ss.value != ts.value:
+                    step = s.index(ss)
+                    break
+        if step is None:
+            step = len(s) - 1
+        level = "partly" if (step == len(s) - 1 and len(s) > 1) else "gap"  # only the final step slipped
+        return {"level": level, "step": step + 1, "truth": truth,
+                "why": f"answer {fmt(s[-1].value)} should be {fmt(truth)}; first wrong step is "
+                       f"{step + 1} '{s[step].text}'"}
+
+    def review(self, problem: dict, student_lines: list, mark: dict) -> dict:
+        own = self.own_verdict(problem, student_lines)
+        same_level = own["level"] == mark["level"]
+        same_step = own["level"] == "understood" or own["step"] == mark["step"]
+        if same_level and same_step:
+            return {"agree": True, "own": own}
+        if own["level"] == "understood":
+            reason = "valid_alternative_method"
+        elif same_level:
+            reason = "wrong_step"
+        else:
+            reason = "wrong_level"
+        return {"agree": False, "own": own, "reason": reason}
+
+
+def explain(problem: dict, student_lines: list, mark: dict, log) -> str:
+    """Student-friendly feedback. The model only words it; the mark and step are already decided."""
+    try:
+        text = llm.complete(
+            "You are a kind Grade 10 maths tutor. In at most two short sentences, tell the student what went "
+            "wrong and what to revise. Do not give a different answer or step than the one stated.\n"
+            f"Question: {problem['question']}\nTextbook solution: {problem['solution']}\n"
+            f"Student's working: {student_lines}\nVerified finding: {mark['detail']}", timeout=60).strip()
+        if text:
+            log("Checker", "info", f"Feedback for {problem['id']}: {text}")
+            return f"{mark['detail']} {text}"
+    except llm.LLMError:
+        pass
+    return mark["detail"]

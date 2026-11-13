@@ -122,5 +122,6 @@ def parse_steps(lines) -> list:
                 elif not exprs and p.strip():
                     label = _label(p)
             if exprs:
-                steps.append(Step(chain.strip(), label, exprs, [evaluate(e) for e in exprs]))
+                shown = [q.strip() for i, q in enumerate(parts) if i == 0 or q.strip() != parts[i - 1].strip()]
+                steps.append(Step(" = ".join(shown), label, exprs, [evaluate(e) for e in exprs]))
     return steps
