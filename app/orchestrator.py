@@ -3,6 +3,7 @@ import threading
 import time
 
 from . import brain as brainstore
+from .career import CareerGuide, check_hand_maths, record_proof
 from .agents import Checker, Planner, Reviewer, explain
 from .mathcheck import fmt
 
@@ -15,6 +16,7 @@ class Run:
         self.concepts = []
         self.problems = []
         self.brain = brainstore.load()
+        self.careers = []
         self.counters = {"reviewer_corrections": 0, "human_interventions": 0}
         self._lock = threading.Lock()
 
@@ -27,7 +29,7 @@ class Run:
         with self._lock:
             return {"status": self.status, "events": self.events[since:], "results": self.results,
                     "concepts": self.concepts, "problems": self.problems, "counters": self.counters,
-                    "brain": self.brain}
+                    "brain": self.brain, "careers": self.careers}
 
     # Policy the Checker switches to when the Reviewer sends a mark back, by the Reviewer's reason.
     FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "accept any valid method, not only the textbook's"),
@@ -91,6 +93,8 @@ class Run:
                 self.mark_and_review(p, work[p["id"]], checker, reviewer)
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
             brainstore.update(self.brain, chapter, self.results, notes_text, self.log)
+            self.log("Brain", "handoff", "Handing understood concepts to the Career guide.")
+            self.careers = CareerGuide(self.log).offer(self.brain)
             self.log("Orchestrator", "done", "Run complete.")
             self.status = "done"
         except ValueError as e:
@@ -99,3 +103,20 @@ class Run:
         except Exception as e:  # keep the demo alive and show what happened
             self.log("Orchestrator", "error", f"Unexpected error: {type(e).__name__}: {e}")
             self.status = "error"
+
+    def check_career(self, concept, text):
+        """Student uploads hand maths for a career task; the Reviewer checks it against the code."""
+        card = next((c for c in self.careers if c["concept"] == concept), None)
+        if card is None:
+            raise ValueError("No career task is open for that concept. Run the agents first.")
+        self.log("Career guide", "handoff", f"Student uploaded hand maths for {card['chain'][1]}. Handing to the Reviewer.")
+        res = check_hand_maths(card, text)
+        if res["ok"]:
+            self.log("Reviewer", "recheck", f"Hand maths verified. {res['msg']}")
+            record_proof(self.brain, card)
+            brainstore.save(self.brain)
+            self.log("Brain", "update", f"{card['name']} linked to career: {' → '.join(card['chain'][1:])} (proven by hand).")
+        else:
+            self.log("Reviewer", "flag", f"Hand maths sent back to the student. {res['msg']}")
+        card["result"] = res
+        return res

@@ -22,7 +22,8 @@ def index():
 @app.get("/api/sample/{name}", response_class=PlainTextResponse)
 def sample(name: str):
     files = {"chapter": "probability_chapter.txt", "working": "student_working.txt", "notes": "student_notes.txt",
-             "working_retry": "student_working_retry.txt"}
+             "working_retry": "student_working_retry.txt", "hand": "student_hand_maths.txt",
+             "hand_fixed": "student_hand_maths_fixed.txt"}
     if name not in files:
         raise HTTPException(404)
     return (ROOT / "samples" / files[name]).read_text(encoding="utf-8")
@@ -50,3 +51,13 @@ def reset_brain():
     brainstore.reset()
     current.brain = brainstore.load()
     return {"ok": True}
+
+
+@app.post("/api/career/check")
+def career_check(concept: str = Form(...), working: str = Form("")):
+    if current.status == "running":
+        raise HTTPException(409, "Wait for the current run to finish.")
+    try:
+        return current.check_career(concept, working)
+    except ValueError as e:
+        raise HTTPException(400, str(e))

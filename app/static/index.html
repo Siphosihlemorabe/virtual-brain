@@ -38,6 +38,14 @@
   #map .node { cursor:pointer; } #map text { font-size:11px; fill:#fff; font-weight:600; pointer-events:none; }
   #map line { stroke:#b9b5ad; stroke-width:1.5; }
   .legend .pill { font-size:11px; }
+  .wide { grid-column: 1 / -1; }
+  .chain { font-weight:700; color:var(--accent); margin-bottom:6px; }
+  .career-grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  @media (max-width: 900px) { .career-grid { grid-template-columns: 1fr; } }
+  pre { background:#1d1d1f; color:#f1efe9; padding:10px; border-radius:6px; overflow-x:auto; font-size:12px; }
+  .verdict { margin-top:8px; padding:8px; border-radius:6px; }
+  .verdict.ok { background:#eaf6ee; } .verdict.bad { background:#fdecea; }
+  .task { white-space:pre-wrap; background:#f3edf8; padding:8px; border-radius:6px; }
 </style>
 </head>
 <body>
@@ -82,6 +90,11 @@
       <span class="pill gap">gap</span> <span class="pill na">not yet seen</span> · arrows point from a topic to what builds on it · click a topic</div>
     <svg id="map" role="img" aria-label="Concept map"></svg>
     <div id="detail" class="muted">Click a topic to see its history and your notes.</div>
+  </section>
+
+  <section class="card wide">
+    <h2>5. Career link</h2>
+    <div id="careers" class="muted">Concepts marked understood unlock a real career application here.</div>
   </section>
 </main>
 <script>
@@ -143,8 +156,45 @@ async function poll() {
     return `<tr><td>${id}</td><td>${esc(names[r.concept] || r.concept)}</td><td>${prev}${pill(r.level)}</td><td>${esc(r.detail)}</td></tr>`;
   }).join('');
   drawBrain(s.brain);
+  drawCareers(s.careers);
   if (s.status !== 'running') { clearInterval(timer); $('run').disabled = false; }
 }
+let careerKey = '';
+function drawCareers(cards) {
+  const key = JSON.stringify(cards.map(c => [c.concept, c.result && c.result.msg]));
+  if (key === careerKey) return;  // don't wipe what the student is typing
+  careerKey = key;
+  if (!cards.length) { $('careers').innerHTML = 'Concepts marked understood unlock a real career application here.'; return; }
+  $('careers').className = '';
+  $('careers').innerHTML = cards.map(c => `
+    <div class="chain">${c.chain.map(esc).join(' → ')}</div>
+    <p>${esc(c.explain)}</p>
+    <div class="career-grid">
+      <div><b>The code</b> (ran on the server) <pre>${esc(c.code)}</pre><b>Output:</b> <code>${esc(c.output)}</code></div>
+      <div><b>Your turn: prove it by hand</b><div class="task">${esc(c.task)}</div>
+        <label for="hand-${c.concept}">Your hand maths</label>
+        <textarea id="hand-${c.concept}" style="height:80px"></textarea>
+        <div class="row"><button class="secondary" onclick="loadHand('${c.concept}','hand')">Load sample hand maths</button>
+          <button class="secondary" onclick="loadHand('${c.concept}','hand_fixed')">Load corrected</button>
+          <button onclick="checkHand('${c.concept}')">Check my hand maths</button></div>
+        ${c.result ? `<div class="verdict ${c.result.ok ? 'ok' : 'bad'}"><b>Reviewer:</b> ${esc(c.result.msg)}</div>` : ''}
+      </div>
+    </div>`).join('<hr>');
+}
+async function loadHand(concept, name) {
+  $('hand-' + concept).value = await (await fetch('/api/sample/' + name)).text();
+}
+async function checkHand(concept) {
+  const body = new FormData();
+  body.append('concept', concept);
+  body.append('working', $('hand-' + concept).value);
+  const typed = $('hand-' + concept).value;
+  const r = await fetch('/api/career/check', { method: 'POST', body });
+  if (!r.ok) { $('status').textContent = (await r.json()).detail; return; }
+  await poll();
+  if ($('hand-' + concept)) $('hand-' + concept).value = typed;
+}
+
 let selected = null, lastBrain = null;
 function drawBrain(brain) {
   lastBrain = brain;
@@ -157,10 +207,21 @@ function drawBrain(brain) {
   const rows = Math.max(...Object.values(cols).map(c => c.length));
   const pos = {};
   Object.entries(cols).forEach(([c, ks]) => ks.forEach((k, i) => pos[k] = { x: c * (W + GX), y: i * (H + GY) }));
+  const jobs = keys.flatMap(k => (C[k].careers || []).map(c => ({ k, c })));
   const svg = $('map');
-  svg.setAttribute('viewBox', `-4 -4 ${nCols * (W + GX) - GX + 8} ${rows * (H + GY) - GY + 8}`);
+  const totalCols = nCols + (jobs.length ? 1 : 0);
   const color = l => ({ understood: 'var(--ok)', partly: 'var(--partly)', gap: 'var(--gap)' }[l] || '#9a9a9a');
   let out = '';
+  const used = new Set();
+  jobs.forEach(({ k, c }) => {
+    let y = pos[k].y;
+    while (used.has(y)) y += H + GY;  // next free row in the career column
+    used.add(y);
+    const x = nCols * (W + GX);
+    out += `<line x1="${pos[k].x + W}" y1="${pos[k].y + H / 2}" x2="${x}" y2="${y + H / 2}" marker-end="url(#arr)" stroke-dasharray="4 3"/>
+      <g><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="17" fill="var(--accent)"/><title>${esc(c.application)} · ${esc(c.use)}</title>
+      <text x="${x + 10}" y="${y + 21}">💼 ${esc(c.career)}</text></g>`;
+  });
   keys.forEach(k => (C[k].builds_on || []).filter(b => pos[b]).forEach(b =>
     out += `<line x1="${pos[b].x + W}" y1="${pos[b].y + H / 2}" x2="${pos[k].x}" y2="${pos[k].y + H / 2}" marker-end="url(#arr)"/>`));
   keys.forEach(k => {
@@ -169,6 +230,8 @@ function drawBrain(brain) {
       stroke="${k === selected ? '#1d1d1f' : 'none'}" stroke-width="2"/><title>${esc(n.name)}</title>
       <text x="${p.x + 8}" y="${p.y + 21}">${esc(name)}</text></g>`;
   });
+  const bottom = Math.max(rows * (H + GY), ...[...used].map(y => y + H + GY)) - GY;
+  svg.setAttribute('viewBox', `-4 -4 ${totalCols * (W + GX) - GX + 8} ${bottom + 8}`);
   svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
     <path d="M0,0 L10,5 L0,10 z" fill="#b9b5ad"/></marker></defs>` + out;
   svg.querySelectorAll('.node').forEach(g => g.onclick = () => { selected = g.dataset.k; drawBrain(lastBrain); });
@@ -177,7 +240,8 @@ function drawBrain(brain) {
     const hist = n.history.map(h => `${esc(h.when)}: ${pill(h.level)} from ${esc(h.from.join(', '))}`).join('<br>') || 'No evidence yet.';
     const notes = n.notes.map(x => `“${esc(x.text)}” <span class="muted">(${esc(x.when)})</span>`).join('<br>') || 'No notes yet.';
     const deps = (n.builds_on || []).map(b => esc(C[b]?.name || b)).join(', ') || 'nothing';
-    $('detail').innerHTML = `<b>${esc(n.name)}</b> · builds on ${deps}<br><b>History</b><br>${hist}<br><b>Your notes</b><br>${notes}`;
+    const jobsTxt = (n.careers || []).map(c => `${esc(c.career)} via ${esc(c.application)} (${esc(c.use)}), proven ${esc(c.proven)}`).join('<br>') || 'None yet.';
+    $('detail').innerHTML = `<b>${esc(n.name)}</b> · builds on ${deps}<br><b>History</b><br>${hist}<br><b>Your notes</b><br>${notes}<br><b>Careers</b><br>${jobsTxt}`;
   }
 }
 poll();
