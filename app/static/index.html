@@ -431,6 +431,8 @@ function renderResults() {
       ${r.notes.length ? `<br>📝 Your own note: “${esc(r.notes[r.notes.length - 1])}”` : ''}</div>`).join('');
   return `<div class="summary"><div><b style="color:var(--ok)">${count('understood')}</b>understood</div>
       <div><b style="color:var(--partly)">${count('partly')}</b>partly</div><div><b style="color:var(--gap)">${count('gap')}</b>gaps</div></div>
+    ${count('unreadable') ? `<div class="error" style="margin:0 0 16px">I couldn't read your working for ${count('unreadable')} question${count('unreadable') > 1 ? 's' : ''}, so ${count('unreadable') > 1 ? 'they were' : 'it was'} not marked. See below, then <a href="#" onclick="goStep(2);return false">fix it in Practise</a>.</div>` : ''}
+    ${S.round_ids.filter(id => !res[id]).length ? `<p class="muted" style="margin:0 0 16px">${S.round_ids.filter(id => !res[id]).length} question(s) not answered yet. A concept only counts as understood once all its questions are done.</p>` : ''}
     ${recalls ? `<div class="card"><h3>What to do next</h3>${recalls}</div>` : ''}
     ${S.noticed.length ? `<div class="card"><h3>What your colleague noticed</h3>${S.noticed.map(n => `<div class="notice">
         <span class="tag ${n.kind === 'mistakes' ? 'warn' : 'good'}">${n.kind === 'mistakes' ? 'Mistake pattern' : 'How you think'}</span>

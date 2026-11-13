@@ -141,6 +141,11 @@ class Session:
             ids = set(self.round_ids())
             chapter = {**chapter, "problems": [p for p in chapter["problems"] if p["id"] in ids]}
             work = checker.read_answers({k: v for k, v in answers.items() if k in ids}, chapter)
+            for pid in checker.unreadable:
+                p = next(x for x in chapter["problems"] if x["id"] == pid)
+                self.results[pid] = {"concept": p["concept"], "level": "unreadable", "step": None,
+                                     "detail": "I couldn't find a calculation or an answer in what you wrote. Write each "
+                                               "step on its own line, like P(red) = 3/10, or just your final answer."}
             if not work:
                 raise ValueError("I could not find any working to check. Write your calculations in the answer boxes.")
             plan = planner.plan(chapter, work, known)
@@ -153,7 +158,8 @@ class Session:
             for step in plan:
                 p = by_id[step["target"]]
                 if step["action"] == "ask_student":
-                    self.log("Planner", "ask", f"{p['id']} not attempted yet. It stays open for you.")
+                    if p["id"] not in checker.unreadable:
+                        self.log("Planner", "ask", f"{p['id']} not attempted yet. It stays open for you.")
                     continue
                 self.mark_and_review(p, work[p["id"]], checker, reviewer, bool(trust))
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")

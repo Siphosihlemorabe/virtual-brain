@@ -3,10 +3,13 @@ every mark and every number is decided in code (mathcheck)."""
 import re
 
 from . import llm
-from .mathcheck import fmt, parse_steps, terms
+from .mathcheck import evaluate, fmt, parse_steps, terms
 
 GOAL = "Take me from a textbook chapter to proven understanding, then to a real career application."
 LEVELS = ("gap", "partly", "understood")
+
+
+_NUMBER = re.compile(r"-?\d+(?:\.\d+)?(?:\s*/\s*\d+)?")
 
 
 def _numbers(text: str) -> set:
@@ -175,10 +178,13 @@ class Checker:
         and rejected if the model changed any of the student's numbers."""
         questions = {p["id"]: p["question"] for p in chapter["problems"]}
         work, messy = {}, {}
+        self.unreadable = []
         for pid, text in answers.items():
             if pid not in questions or not str(text).strip():
                 continue
-            lines = [l.strip() for l in str(text).splitlines() if l.strip()]
+            # a bare final answer like '2/5' or '0.4' counts as a one-step answer
+            lines = [l.strip() if "=" in l or evaluate(l) is None else f"answer = {l.strip()}"
+                     for l in str(text).splitlines() if l.strip()]
             if parse_steps(lines):
                 work[pid] = lines
             else:
@@ -188,7 +194,8 @@ class Checker:
                 data = llm.complete_json(
                     "Read a Grade 10 student's maths working. For each problem, rewrite every calculation the student "
                     "did as one line 'label = expression = ... = value'. Copy the student's numbers EXACTLY, including "
-                    "mistakes. Never correct anything.\n"
+                    "mistakes. Never correct anything and never add a number the student did not write. If they only "
+                    "gave a final answer, return just ['answer = <their value>'].\n"
                     f"{[(pid, questions[pid], txt) for pid, txt in messy.items()]}\n"
                     'Return {"P1":["line", ...], ...}')
                 for pid, lines in (data.items() if isinstance(data, dict) else []):
@@ -199,8 +206,15 @@ class Checker:
             except llm.LLMError as e:
                 self.log(self.name, "warn", f"Could not read the free-text working ({e}).")
             for pid in messy:
-                if pid not in work:
-                    self.log(self.name, "warn", f"{pid}: I could not find a calculation in the answer.")
+                if pid in work:
+                    continue
+                final = _NUMBER.findall(messy[pid])  # last resort: the last number they wrote is their answer
+                if final and evaluate(final[-1]) is not None:
+                    work[pid] = [f"answer = {final[-1]}"]
+                    self.log(self.name, "info", f"{pid}: no working I could read, so I am marking your final answer {final[-1]}.")
+                else:
+                    self.unreadable.append(pid)
+                    self.log(self.name, "warn", f"{pid}: I could not find a calculation or an answer in what you wrote.")
         self.log(self.name, "info", f"Read the student's working for {', '.join(sorted(work)) or 'no problems'}.")
         return work
 
@@ -229,6 +243,10 @@ class Checker:
             return {"level": "partly", "step": err + 1,
                     "detail": f"Answer {fmt(s_final)} is correct, but step {err + 1} does not follow the textbook "
                               f"method ('{t[err].text}')."}
+        if len(s) == 1 and s[0].label == "answer":  # only a final answer: there is no working to locate the error in
+            return {"level": "gap", "step": None,
+                    "detail": f"Your answer {fmt(s_final)} should be {fmt(t_final)}. Show your working next time so I "
+                              "can find exactly where it goes wrong."}
         step = err if err is not None else len(t) - 1
         level = "partly" if (step == len(t) - 1 and len(t) > 1) else "gap"
         wrote = s[step].text if step < len(s) else "(missing)"
@@ -262,6 +280,9 @@ class Reviewer:
                         "why": f"right answer but step {slips[0] + 1} '{s[slips[0]].text}' does not add up"}
             return {"level": "understood", "step": None, "truth": truth,
                     "why": f"every step is arithmetically valid and the answer {fmt(truth)} is correct"}
+        if len(s) == 1 and s[0].label == "answer":  # only a final answer: nothing to locate
+            return {"level": "gap", "step": None, "truth": truth,
+                    "why": f"answer {fmt(s[-1].value)} should be {fmt(truth)}, with no working shown"}
         # wrong answer: find where it first goes wrong, matching steps by what they compute (label)
         step = None
         if slips:

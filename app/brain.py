@@ -75,9 +75,17 @@ def update(brain: dict, chapter: dict, results: dict, notes: str, log) -> dict:
         if r["level"] in RANK:
             key = keymap[r["concept"]]
             evidence.setdefault(key, []).append((r["level"], pid))
+    asked = {}
+    for p in chapter.get("problems", []):
+        asked.setdefault(keymap.get(p["concept"]), []).append(p["id"])
     for key, marks in evidence.items():
         node = brain["concepts"][key]
         level = min((m[0] for m in marks), key=RANK.get)
+        total = len(asked.get(key, [])) or len(marks)
+        if level == "understood" and len(marks) < total:
+            level = "partly"
+            log("Brain", "info", f"{node['name']}: right on {len(marks)} of {total} questions, but the rest are not "
+                                 "answered yet, so PARTLY until they are.")
         old = node["level"]
         node["level"] = level
         node["history"].append({"when": today, "level": level, "from": [m[1] for m in marks]})
