@@ -19,26 +19,37 @@ The language model reads text and writes explanations only. Choose it with `VB_L
 | `gemini` | the Gemini API (`GEMINI_API_KEY`, `VB_GEMINI_MODEL`, default `gemini-2.5-flash`) |
 | `mock` | no model, fully offline. Every model step has a rule-based fallback |
 
+## How a session works
+
+1. **Chapter.** The student pastes or uploads the chapter they are studying.
+2. **Learn.** Concepts and worked examples are revealed one step at a time, with a notes box per concept. If the chapter has no worked examples, practice questions or memos, the **Tutor** writes them and the **Reviewer** checks every one before the student sees it: each line must add up, and an independent blind solve must reach the same answer. Anything that fails goes back to the Tutor once. If it fails again, it is dropped.
+3. **Practise.** One answer box per question. Any valid method counts.
+4. **Results.** Marks are checked by the Reviewer (a corrected mark is shown as corrected), the brain is updated, and recall says what to revise first.
+5. **Real world.** Mastered concepts unlock a career link with real code and a by-hand proof.
+
+The side panel "Your colleague at work" shows every agent action, every Reviewer correction and the human-intervention counter.
+
 ## Agents
 
 | Agent | Role |
 |---|---|
-| Planner | Reads the chapter into concepts and problems, uses the brain to plan the marking order, and decides when to call recall |
-| Checker | Reads the student's working and marks each problem against the worked solution, naming the exact step |
-| Reviewer | Redoes all the maths itself. Flags wrong marks and sends them back to the Checker, then re-checks. Also checks career hand maths and confirms or rejects recall guesses |
+| Planner | Reads the chapter, decides what is missing, plans the session and the marking order, and decides when to call recall |
+| Tutor | Writes missing worked examples, memos and practice questions |
+| Checker | Marks each answer against the memo and names the exact step that went wrong |
+| Reviewer | Redoes all the maths itself: checks Tutor material, overturns wrong marks, checks career hand maths, and confirms or rejects recall guesses |
 | Career guide | For understood concepts: runs real code (Naive Bayes spam filter) and sets a by-hand task |
 | Brain | Stores levels, history, notes, links and proven careers (`data/brain.json`). On a gap, it proposes the earlier topic that is the likely cause |
 
-Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/brain.py`, `app/recall.py`). The model's reading is checked so it cannot change a number. If it does, the rule-based reader is used and the log says so.
+Marks, arithmetic and brain updates are ordinary code (`app/mathcheck.py`, `app/brain.py`, `app/recall.py`). The language model reads text, writes material and writes explanations. Everything it produces is checked in code before it is used.
 
-## Demo script (about 4 minutes)
+## Demo script
 
-1. **Reset brain.** Load **Algebra (earlier topic)**, then Run. The student multiplied like terms. The brain saves a gap and the student's note.
-2. Load **Euclidean geometry**, then Run. P1 is traced back to algebra: the Reviewer confirms it because step 2 uses algebra, and the student's own algebra note comes back. For P2, the Reviewer *rejects* the algebra guess because step 1 is a geometry fact.
-3. Load **Probability: first attempt**, then Run. The Checker marks P2 (a valid Venn-diagram method) as partly. The Reviewer **flags** it, the Checker **fixes** it, and the Reviewer **re-checks** it. The Reviewer corrections counter goes up by 1.
-4. Career link: **Load sample hand maths**, then **Check**. The Reviewer finds the wrong line (1/16 should be 1/32). Click **Load corrected**, then **Check**. The career is proven, and the brain map gains a Data scientist node.
-5. Load **Probability: improved working**, then Run. Complementary events moves from gap to understood. Click the topic to show its history.
+1. **My brain → Reset brain.** Choose the sample **Algebra**, then **Prepare**. Go to **Practise**, click **Fill sample answers**, then **Check**. The student multiplied like terms, so the brain saves a gap and the student's note.
+2. Choose **Euclidean geometry**, then do the same. P1 is traced back to algebra (confirmed, and the student's own note comes back). The algebra guess for P2 is rejected because the mistake is a geometry fact.
+3. Choose **Probability (with worked solutions)**, fill the sample answers, then check. P2 (a Venn-diagram method) is **flagged**, **fixed** and **re-checked**.
+4. **Real world:** check the sample hand maths (the Reviewer finds 1/16 should be 1/32), then the corrected version. The Data scientist node appears in **My brain**.
+5. Choose **Probability (explanation only)**, then prepare. The Tutor writes worked examples and practice, and the Reviewer verifies them before you see them.
 
 ## Using your own data
 
-Plain text works. Label concepts `Concept C1: name` and problems `Problem P1 (C1): question`, then `Worked solution:` with one calculation per line. Add `(uses: Topic name)` to a solution line so recall can trace that step to an earlier topic. In the student's working, start each problem with `P1:`. Edit `samples/curriculum.json` to change the starting topic map, and `samples/careers.json` to add career links.
+Plain text works. Label concepts `Concept C1: name` and problems `Problem P1 (C1): question`, then `Worked solution:` (or `Memo:`) with one calculation per line, or `Example E1 (C1): ...` for worked examples. Unlabelled chapters are read by the language model, and anything missing is written by the Tutor. Add `(uses: Topic name)` to a solution line so recall can trace that step to an earlier topic. Edit `samples/curriculum.json` to change the starting topic map, and `samples/careers.json` to add career links.

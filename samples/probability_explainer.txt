@@ -1,0 +1,7 @@
+Chapter 9: Probability (Grade 10)
+
+Probability tells us how likely something is to happen, on a scale from 0 (impossible) to 1 (certain). When every outcome is equally likely, we count: the probability of an event is the number of outcomes we want divided by the total number of possible outcomes. The set of all possible outcomes is called the sample space.
+
+Sometimes two events can happen at the same time. For example, a learner can play soccer and netball. These events are called inclusive. If we add the probability of each event, the learners who do both get counted twice, so we must subtract the overlap once: P(A or B) = P(A) + P(B) - P(A and B). A Venn diagram is a good way to see the overlap.
+
+The complement of an event A is everything in the sample space that is not A. Because an event either happens or it does not, P(not A) = 1 - P(A). This is often the quickest way to answer "not" and "at least one" questions.

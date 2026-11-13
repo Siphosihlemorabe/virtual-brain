@@ -10,10 +10,22 @@ import shutil
 import subprocess
 import tempfile
 import urllib.request
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+except ImportError:  # .env support is optional
+    pass
 
 
 class LLMError(Exception):
     pass
+
+
+def _env(name: str):
+    """Environment variable, matched case-insensitively (the .env may say Gemini_Api_Key)."""
+    return next((v for k, v in os.environ.items() if k.upper() == name), None)
 
 
 def provider() -> str:
@@ -45,7 +57,7 @@ def _claude(prompt: str, timeout: int) -> str:
 
 
 def _gemini(prompt: str, timeout: int) -> str:
-    key = os.environ.get("GEMINI_API_KEY")
+    key = _env("GEMINI_API_KEY")
     if not key:
         raise LLMError("GEMINI_API_KEY not set")
     model = os.environ.get("VB_GEMINI_MODEL", "gemini-2.5-flash")

@@ -33,8 +33,9 @@ def skill_of_wrong_step(problem: dict, step_no):
     return steps[min(step_no, len(steps)) - 1].uses or None
 
 
-def confirm(brain: dict, key: str, problem: dict, step_no, guess):
-    """Reviewer's check of the brain's guess. Returns (cause_key or None, verdict text)."""
+def confirm(brain: dict, key: str, problem: dict, step_no, guess, names=None):
+    """Reviewer's check of the brain's guess. Returns (cause_key or None, verdict text).
+    names maps a topic name's slug to its brain key (chapter wording can differ from the brain's)."""
     skill = skill_of_wrong_step(problem, step_no)
     if not skill:
         level = brain["concepts"][guess]["level"]
@@ -42,7 +43,7 @@ def confirm(brain: dict, key: str, problem: dict, step_no, guess):
             return guess, f"the textbook does not tag this step, but the brain has evidence {brain['concepts'][guess]['name']} is a {level}"
         return None, (f"there is no evidence: the textbook does not tag step {step_no} and "
                       f"{brain['concepts'][guess]['name']} has never been tested. Revise this chapter first")
-    skill_key = slug(skill)
+    skill_key = (names or {}).get(slug(skill), slug(skill))
     if skill_key == key:
         return None, (f"step {step_no} uses {skill} itself, so this is not caused by an earlier topic. "
                       "Revise this chapter's rule")
@@ -50,11 +51,15 @@ def confirm(brain: dict, key: str, problem: dict, step_no, guess):
         return guess, f"step {step_no} uses {skill}, and the brain shows that topic is weak"
     if skill_key in ancestors(brain, key) and brain["concepts"][skill_key]["level"] != "understood":
         return skill_key, f"step {step_no} actually uses {skill}, not the brain's first guess"
-    return None, f"step {step_no} uses {skill}, which the brain shows is understood, so it is not the cause"
+    if skill_key in brain["concepts"] and brain["concepts"][skill_key]["level"] == "understood":
+        return None, f"step {step_no} uses {skill}, which the brain shows is understood, so it is not the cause"
+    return None, f"step {step_no} uses {skill}, which is not an earlier topic this one builds on. Revise this chapter's rule"
 
 
 def run(brain: dict, keymap: dict, chapter: dict, results: dict, log) -> list:
     by_id = {p["id"]: p for p in chapter["problems"]}
+    names = {slug(c["name"]): k for k, c in brain["concepts"].items()}
+    names.update({slug(c["name"]): keymap[c["id"]] for c in chapter["concepts"]})
     out = []
     for pid, r in results.items():
         if r["level"] not in ("gap", "partly"):
@@ -69,7 +74,7 @@ def run(brain: dict, keymap: dict, chapter: dict, results: dict, log) -> list:
         log("Brain", "recall", f"{pid} ({name}) is a {r['level']}. Likely cause: an earlier topic, "
                                f"{gname} (level: {brain['concepts'][guess]['level'] or 'never tested'}). "
                                "Asking the Reviewer to confirm.")
-        cause, why = confirm(brain, key, by_id[pid], r.get("step"), guess)
+        cause, why = confirm(brain, key, by_id[pid], r.get("step"), guess, names)
         if cause == guess:
             log("Reviewer", "recheck", f"Confirmed for {pid}: {why}.")
         elif cause is None:

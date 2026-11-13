@@ -1,21 +1,23 @@
-"""Runs the agents for one upload and records every action in a live log."""
+"""One study session: the student hands over a chapter, the agents prepare it, the student practises,
+the agents check and remember. Every action is recorded in a live log."""
 import threading
 import time
 
 from . import brain as brainstore
 from . import recall
-from .career import CareerGuide, check_hand_maths, record_proof
 from .agents import Checker, Planner, Reviewer, explain
+from .career import CareerGuide, check_hand_maths, record_proof
 from .mathcheck import fmt
+from .tutor import Tutor
 
 
-class Run:
+class Session:
     def __init__(self):
         self.events = []
-        self.status = "idle"
+        self.stage = "start"  # start | preparing | ready | checking | checked | error
+        self.error = ""
+        self.chapter = None
         self.results = {}
-        self.concepts = []
-        self.problems = []
         self.brain = brainstore.load()
         self.careers = []
         self.recalls = []
@@ -29,11 +31,49 @@ class Run:
 
     def snapshot(self, since=0):
         with self._lock:
-            return {"status": self.status, "events": self.events[since:], "results": self.results,
-                    "concepts": self.concepts, "problems": self.problems, "counters": self.counters,
+            chapter = None
+            if self.chapter:
+                # practice solutions stay hidden until that problem has been checked
+                problems = [{**p, "solution": p["solution"] if p["id"] in self.results else [],
+                             "has_memo": bool(p["solution"])} for p in self.chapter["problems"]]
+                chapter = {**self.chapter, "problems": problems}
+            return {"stage": self.stage, "error": self.error, "events": self.events[since:],
+                    "chapter": chapter, "results": self.results, "counters": self.counters,
                     "brain": self.brain, "careers": self.careers, "recalls": self.recalls}
 
-    # Policy the Checker switches to when the Reviewer sends a mark back, by the Reviewer's reason.
+    def _fail(self, e):
+        msg = str(e) if isinstance(e, ValueError) else f"Unexpected error: {type(e).__name__}: {e}"
+        self.log("Orchestrator", "error", msg)
+        self.error = msg
+        self.stage = "error"
+
+    # ------------------------------------------------------------ phase 1: prepare the chapter
+
+    def prepare(self, chapter_text):
+        self.stage, self.error = "preparing", ""
+        try:
+            self.log("Orchestrator", "info", "Goal: take this chapter to proven understanding, then to a real career.")
+            known = brainstore.summary(self.brain)
+            chapter = Planner(self.log).read_chapter(chapter_text, known)
+            Tutor(self.log, self.counters).fill(chapter, [n for _, n, _ in known] + [c["name"] for c in chapter["concepts"]])
+            practice = [p for p in chapter["problems"] if p["solution"]]
+            skipped = [p["id"] for p in chapter["problems"] if not p["solution"]]
+            if skipped:
+                self.log("Planner", "warn", f"No verified memo for {', '.join(skipped)}, so I left it out of practice.")
+            chapter["problems"] = practice
+            if not practice:
+                raise ValueError("There are no practice questions I could verify for this chapter yet.")
+            self.chapter = chapter
+            self.log("Planner", "plan", f"Study plan: learn {len(chapter['concepts'])} concepts from "
+                                        f"{len(chapter['examples'])} worked examples, then practise "
+                                        f"{len(practice)} questions. I will check your work, update your brain, "
+                                        "and unlock a career link for anything you master.")
+            self.stage = "ready"
+        except Exception as e:  # keep the session alive and show what happened
+            self._fail(e)
+
+    # ------------------------------------------------------------ phase 2: check the student's practice
+
     FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "accept any valid method, not only the textbook's"),
              "wrong_step": ({"align": "label"}, "match steps by what they calculate, not by position"),
              "wrong_level": ({"align": "label"}, "match steps by what they calculate, not by position")}
@@ -73,48 +113,45 @@ class Run:
             mark["detail"] = explain(p, lines, mark, self.log)
         self.results[pid] = {"concept": p["concept"], "checker": first, **mark}
 
-    def execute(self, chapter_text, working_text, notes_text=""):
-        self.status = "running"
+    def check(self, answers: dict, notes: dict):
+        self.stage, self.error = "checking", ""
         try:
+            chapter = self.chapter
             planner, checker, reviewer = Planner(self.log), Checker(self.log), Reviewer(self.log)
-            self.log("Orchestrator", "info", "Goal received: chapter → proven understanding → career application.")
             known = brainstore.summary(self.brain)
-            chapter = planner.read_chapter(chapter_text, known)
-            self.concepts, self.problems = chapter["concepts"], chapter["problems"]
-            self.log("Planner", "handoff", "Handing the chapter to the Checker to read the student's working.")
-            work = checker.read_working(working_text, chapter)
+            self.log("Orchestrator", "handoff", "Student handed in their practice. Handing it to the Checker.")
+            work = checker.read_answers(answers, chapter)
+            if not work:
+                raise ValueError("I could not find any working to check. Write your calculations in the answer boxes.")
             plan = planner.plan(chapter, work, known)
             by_id = {p["id"]: p for p in chapter["problems"]}
             for step in plan:
                 p = by_id[step["target"]]
                 if step["action"] == "ask_student":
-                    self.results[p["id"]] = {"concept": p["concept"], "level": "not attempted", "step": None,
-                                             "detail": "Not attempted yet. Student asked to try it."}
-                    self.log("Planner", "ask", f"{p['id']} not attempted. Asking the student: {p['question']}")
+                    self.log("Planner", "ask", f"{p['id']} not attempted yet. It stays open for you.")
                     continue
                 self.mark_and_review(p, work[p["id"]], checker, reviewer)
             self.log("Reviewer", "handoff", "Verified marks handed to the brain.")
-            keymap = brainstore.update(self.brain, chapter, self.results, notes_text, self.log)
+            note_text = "\n".join(f"{cid}: {line}" for cid, txt in notes.items() for line in str(txt).splitlines()
+                                  if line.strip())
+            keymap = brainstore.update(self.brain, chapter, self.results, note_text, self.log)
             if any(r["level"] in ("gap", "partly") for r in self.results.values()):
                 self.log("Planner", "reason", "Some problems are not yet understood, so before moving on I am asking "
                                               "the brain whether an earlier topic is the cause.")
                 self.recalls = recall.run(self.brain, keymap, chapter, self.results, self.log)
             self.log("Brain", "handoff", "Handing understood concepts to the Career guide.")
             self.careers = CareerGuide(self.log).offer(self.brain)
-            self.log("Orchestrator", "done", "Run complete.")
-            self.status = "done"
-        except ValueError as e:
-            self.log("Orchestrator", "error", str(e))
-            self.status = "error"
-        except Exception as e:  # keep the demo alive and show what happened
-            self.log("Orchestrator", "error", f"Unexpected error: {type(e).__name__}: {e}")
-            self.status = "error"
+            self.log("Orchestrator", "done", "Checked. Your results and next steps are ready.")
+            self.stage = "checked"
+        except Exception as e:
+            self._fail(e)
+            self.stage = "ready" if self.chapter else "error"
 
     def check_career(self, concept, text):
         """Student uploads hand maths for a career task; the Reviewer checks it against the code."""
         card = next((c for c in self.careers if c["concept"] == concept), None)
         if card is None:
-            raise ValueError("No career task is open for that concept. Run the agents first.")
+            raise ValueError("No career task is open for that concept yet.")
         self.log("Career guide", "handoff", f"Student uploaded hand maths for {card['chain'][1]}. Handing to the Reviewer.")
         res = check_hand_maths(card, text)
         if res["ok"]:

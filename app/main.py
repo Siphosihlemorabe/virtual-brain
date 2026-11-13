@@ -1,4 +1,6 @@
-"""Virtual Brain web server. Run: uvicorn app.main:app --reload"""
+"""Virtual Brain web server. Run: python -m uvicorn app.main:app --port 8000"""
+import json
+import re
 import threading
 from pathlib import Path
 
@@ -7,11 +9,36 @@ from fastapi.responses import FileResponse, PlainTextResponse
 
 from . import brain as brainstore
 from . import llm
-from .orchestrator import Run
+from .orchestrator import Session
 
 ROOT = Path(__file__).resolve().parent.parent
+SAMPLES = ROOT / "samples"
 app = FastAPI(title="Virtual Brain")
-current = Run()
+current = Session()
+
+# Sample chapters a student can try, with optional sample answers and notes for the demo.
+CHAPTERS = {
+    "probability": {"title": "Probability (with worked solutions)", "chapter": "probability_chapter.txt",
+                    "answers": "student_working.txt", "answers_retry": "student_working_retry.txt",
+                    "notes": "student_notes.txt"},
+    "probability_explainer": {"title": "Probability (explanation only, no examples)",
+                              "chapter": "probability_explainer.txt"},
+    "algebra": {"title": "Algebra: solving equations", "chapter": "algebra_chapter.txt",
+                "answers": "algebra_working.txt", "notes": "algebra_notes.txt"},
+    "geometry": {"title": "Euclidean geometry", "chapter": "geometry_chapter.txt", "answers": "geometry_working.txt"},
+}
+HAND = {"hand": "student_hand_maths.txt", "hand_fixed": "student_hand_maths_fixed.txt"}
+
+
+def _busy():
+    if current.stage in ("preparing", "checking"):
+        raise HTTPException(409, "Your colleague is still working. Give it a moment.")
+
+
+def _split(text: str, pattern: str) -> dict:
+    """'P1: ...' or 'C2: ...' blocks -> {id: text}."""
+    return {m.group(1): m.group(2).strip()
+            for m in re.finditer(pattern + r"\s*[:.)]\s*(.*?)(?=^\s*[PC]\d+\s*[:.)]|\Z)", text, flags=re.M | re.S)}
 
 
 @app.get("/")
@@ -19,25 +46,49 @@ def index():
     return FileResponse(ROOT / "app" / "static" / "index.html")
 
 
+@app.get("/api/samples")
+def samples():
+    return [{"id": k, "title": v["title"], "has_answers": "answers" in v, "has_retry": "answers_retry" in v}
+            for k, v in CHAPTERS.items()]
+
+
 @app.get("/api/sample/{name}", response_class=PlainTextResponse)
-def sample(name: str):
-    files = {"chapter": "probability_chapter.txt", "working": "student_working.txt", "notes": "student_notes.txt",
-             "working_retry": "student_working_retry.txt", "hand": "student_hand_maths.txt",
-             "hand_fixed": "student_hand_maths_fixed.txt", "algebra_chapter": "algebra_chapter.txt",
-             "algebra_working": "algebra_working.txt", "algebra_notes": "algebra_notes.txt",
-             "geometry_chapter": "geometry_chapter.txt", "geometry_working": "geometry_working.txt"}
-    if name not in files:
+def sample_text(name: str):
+    if name in HAND:
+        return (SAMPLES / HAND[name]).read_text(encoding="utf-8")
+    if name not in CHAPTERS:
         raise HTTPException(404)
-    return (ROOT / "samples" / files[name]).read_text(encoding="utf-8")
+    return (SAMPLES / CHAPTERS[name]["chapter"]).read_text(encoding="utf-8")
 
 
-@app.post("/api/run")
-def run(chapter: str = Form(""), working: str = Form(""), notes: str = Form("")):
+@app.get("/api/sample/{name}/answers")
+def sample_answers(name: str, retry: bool = False):
+    info = CHAPTERS.get(name, {})
+    file = info.get("answers_retry" if retry else "answers")
+    answers = _split((SAMPLES / file).read_text(encoding="utf-8"), r"^\s*(P\d+)") if file else {}
+    notes = _split((SAMPLES / info["notes"]).read_text(encoding="utf-8"), r"^\s*(C\d+)") if info.get("notes") else {}
+    return {"answers": answers, "notes": notes}
+
+
+@app.post("/api/prepare")
+def prepare(chapter: str = Form("")):
     global current
-    if current.status == "running":
-        raise HTTPException(409, "A run is already in progress.")
-    current = Run()
-    threading.Thread(target=current.execute, args=(chapter, working, notes), daemon=True).start()
+    _busy()
+    current = Session()
+    threading.Thread(target=current.prepare, args=(chapter,), daemon=True).start()
+    return {"ok": True}
+
+
+@app.post("/api/check")
+def check(answers: str = Form("{}"), notes: str = Form("{}")):
+    _busy()
+    if current.chapter is None:
+        raise HTTPException(400, "Open a chapter first.")
+    try:
+        a, n = json.loads(answers), json.loads(notes)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "Answers were not sent correctly.")
+    threading.Thread(target=current.check, args=(a, n), daemon=True).start()
     return {"ok": True}
 
 
@@ -46,20 +97,18 @@ def state(since: int = 0):
     return {**current.snapshot(since), "llm": llm.provider()}
 
 
-@app.post("/api/brain/reset")
-def reset_brain():
-    if current.status == "running":
-        raise HTTPException(409, "Wait for the current run to finish.")
-    brainstore.reset()
-    current.brain = brainstore.load()
-    return {"ok": True}
-
-
 @app.post("/api/career/check")
 def career_check(concept: str = Form(...), working: str = Form("")):
-    if current.status == "running":
-        raise HTTPException(409, "Wait for the current run to finish.")
+    _busy()
     try:
         return current.check_career(concept, working)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/brain/reset")
+def reset_brain():
+    _busy()
+    brainstore.reset()
+    current.brain = brainstore.load()
+    return {"ok": True}

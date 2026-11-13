@@ -5,254 +5,539 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Virtual Brain</title>
 <style>
-  :root { --bg:#f6f5f2; --card:#fff; --ink:#1d1d1f; --muted:#6b6b70; --line:#e2e0da;
-          --gap:#c0392b; --partly:#d68910; --ok:#1e8449; --accent:#5b2a86; }
-  * { box-sizing: border-box; }
-  body { margin:0; font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background:var(--bg); color:var(--ink); }
-  header { padding:14px 20px; background:var(--accent); color:#fff; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; }
-  header h1 { margin:0; font-size:20px; } header span { opacity:.85; }
-  main { display:grid; grid-template-columns: 1fr 1fr; gap:16px; padding:16px; }
-  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; min-width:0; }
-  h2 { font-size:15px; margin:0 0 10px; }
-  textarea { width:100%; height:150px; font:12px/1.4 ui-monospace, Consolas, monospace; border:1px solid var(--line); border-radius:6px; padding:8px; }
-  label { font-weight:600; display:block; margin:8px 0 4px; }
-  button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 14px; font-weight:600; cursor:pointer; }
-  button.secondary { background:#fff; color:var(--accent); border:1px solid var(--accent); }
-  button:disabled { opacity:.5; cursor:default; }
-  select { padding:7px; border:1px solid var(--accent); border-radius:6px; color:var(--accent); background:#fff; font-weight:600; }
-  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px; }
-  .counters { display:flex; gap:12px; flex-wrap:wrap; }
-  .counter { flex:1; min-width:130px; border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
-  .counter b { font-size:22px; display:block; }
-  .counter small { color:var(--muted); }
-  #log { height:420px; overflow-y:auto; font:12px/1.45 ui-monospace, Consolas, monospace; }
-  .ev { padding:5px 6px; border-bottom:1px solid var(--line); }
-  .ev .who { font-weight:700; } .ev .t { color:var(--muted); margin-right:6px; }
-  .k-warn { background:#fff8e6; } .k-error { background:#fdecea; } .k-plan, .k-reason { background:#f3edf8; }
-  .k-flag { background:#fdecea; } .k-fix { background:#eaf6ee; } .k-recheck { background:#eef4fb; } .k-handoff { color:var(--muted); }
-  table { width:100%; border-collapse:collapse; } td, th { text-align:left; padding:6px; border-bottom:1px solid var(--line); vertical-align:top; }
-  .pill { display:inline-block; padding:1px 8px; border-radius:10px; color:#fff; font-size:12px; font-weight:600; }
-  .gap { background:var(--gap); } .partly { background:var(--partly); } .understood { background:var(--ok); } .na { background:#999; }
-  .muted { color:var(--muted); } s { color:var(--muted); }
-  #map { width:100%; display:block; margin:8px 0; }
-  #map .node { cursor:pointer; } #map text { font-size:11px; fill:#fff; font-weight:600; pointer-events:none; }
-  #map line { stroke:#b9b5ad; stroke-width:1.5; }
-  .legend .pill { font-size:11px; }
-  .wide { grid-column: 1 / -1; }
-  .chain { font-weight:700; color:var(--accent); margin-bottom:6px; }
-  .career-grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
-  @media (max-width: 900px) { .career-grid { grid-template-columns: 1fr; } }
-  pre { background:#1d1d1f; color:#f1efe9; padding:10px; border-radius:6px; overflow-x:auto; font-size:12px; }
-  .verdict { margin-top:8px; padding:8px; border-radius:6px; }
-  .verdict.ok { background:#eaf6ee; } .verdict.bad { background:#fdecea; }
-  .task { white-space:pre-wrap; background:#f3edf8; padding:8px; border-radius:6px; }
+  :root {
+    --bg:#f5f4f1; --surface:#ffffff; --surface-2:#f0eef9; --ink:#1c1b22; --muted:#6b6a75; --line:#e4e2dc;
+    --accent:#5b2a86; --accent-ink:#ffffff; --accent-soft:#efe7f7;
+    --ok:#1e8449; --ok-soft:#e6f4ea; --partly:#b9770e; --partly-soft:#fdf2e0; --gap:#c0392b; --gap-soft:#fbe9e7;
+    --code-bg:#1c1b22; --code-ink:#f1efe9; --shadow:0 1px 2px rgba(0,0,0,.05), 0 4px 16px rgba(0,0,0,.04);
+    --a-planner:#5b2a86; --a-tutor:#0e7c86; --a-checker:#2563eb; --a-reviewer:#c2410c; --a-brain:#15803d;
+    --a-career:#a16207; --a-orch:#6b6a75;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#141318; --surface:#1d1c23; --surface-2:#26243a; --ink:#ecebf0; --muted:#a09fab; --line:#2e2d36;
+      --accent:#b48ae0; --accent-ink:#141318; --accent-soft:#2c2340;
+      --ok:#4ade80; --ok-soft:#173022; --partly:#f5b041; --partly-soft:#33280f; --gap:#f87171; --gap-soft:#3a1c1c;
+      --code-bg:#0e0d12; --shadow:none;
+      --a-planner:#b48ae0; --a-tutor:#2dd4bf; --a-checker:#60a5fa; --a-reviewer:#fb923c; --a-brain:#4ade80;
+      --a-career:#facc15; --a-orch:#a09fab;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--ink); }
+  button, input, textarea, select { font:inherit; color:inherit; }
+  h1, h2, h3 { line-height:1.25; margin:0; }
+  .muted { color:var(--muted); }
+  .hidden { display:none !important; }
+
+  /* top bar */
+  header { position:sticky; top:0; z-index:20; background:var(--surface); border-bottom:1px solid var(--line);
+           display:flex; align-items:center; gap:16px; padding:10px 20px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px; }
+  .brand .logo { width:30px; height:30px; border-radius:9px; background:var(--accent); color:var(--accent-ink);
+                 display:grid; place-items:center; font-size:16px; }
+  nav.tabs { display:flex; gap:4px; margin-left:12px; }
+  nav.tabs button { border:0; background:none; padding:7px 14px; border-radius:8px; cursor:pointer; color:var(--muted); font-weight:600; }
+  nav.tabs button[aria-selected="true"] { background:var(--accent-soft); color:var(--accent); }
+  .spacer { flex:1; }
+  #toggleLog { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:6px 14px; cursor:pointer;
+               font-weight:600; display:flex; gap:8px; align-items:center; }
+  .pulse { width:8px; height:8px; border-radius:50%; background:var(--muted); }
+  .busy .pulse { background:var(--ok); animation:pulse 1s infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+
+  /* layout */
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 380px; gap:0; min-height:calc(100vh - 53px); }
+  .layout.log-closed { grid-template-columns:minmax(0,1fr) 0; }
+  main { padding:24px 20px 60px; }
+  .wrap { max-width:860px; margin:0 auto; }
+  aside { border-left:1px solid var(--line); background:var(--surface); position:sticky; top:53px; height:calc(100vh - 53px);
+          display:flex; flex-direction:column; overflow:hidden; }
+  .log-closed aside { display:none; }
+  @media (max-width: 1050px) {
+    .layout, .layout.log-closed { grid-template-columns:minmax(0,1fr); }
+    aside { position:fixed; right:0; top:53px; width:min(420px, 100vw); z-index:30; box-shadow:-8px 0 24px rgba(0,0,0,.15); }
+  }
+  @media (max-width: 600px) {
+    header { padding:10px 12px; gap:8px; } nav.tabs { margin-left:0; } .brand span.word { display:none; }
+    main { padding:16px 12px 60px; } #toggleLog .label { display:none; }
+  }
+
+  /* stepper */
+  .stepper { display:flex; gap:6px; margin-bottom:22px; overflow-x:auto; padding-bottom:2px; }
+  .stepper button { flex:1; min-width:110px; border:1px solid var(--line); background:var(--surface); border-radius:10px;
+                    padding:8px 10px; text-align:left; cursor:pointer; }
+  .stepper button:disabled { cursor:default; opacity:.45; }
+  .stepper button .n { font-size:12px; color:var(--muted); display:block; }
+  .stepper button .t { font-weight:700; font-size:14px; }
+  .stepper button[aria-current="step"] { border-color:var(--accent); background:var(--accent-soft); }
+  .stepper button[aria-current="step"] .t { color:var(--accent); }
+  .stepper button.done .n::after { content:" ✓"; color:var(--ok); }
+
+  /* cards & controls */
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; box-shadow:var(--shadow); margin-bottom:16px; }
+  .card h2 { font-size:20px; margin-bottom:6px; }
+  .card h3 { font-size:16px; margin-bottom:4px; }
+  .lead { font-size:16px; color:var(--muted); margin:0 0 16px; }
+  textarea { width:100%; border:1px solid var(--line); background:var(--bg); border-radius:10px; padding:10px 12px; resize:vertical; }
+  textarea:focus, button:focus-visible, select:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  textarea.mono { font:13px/1.5 ui-monospace, "Cascadia Code", Consolas, monospace; }
+  .btn { border:0; border-radius:10px; padding:10px 18px; font-weight:700; cursor:pointer; background:var(--accent); color:var(--accent-ink); }
+  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .btn.small { padding:6px 12px; font-size:13px; }
+  .btn:disabled { opacity:.5; cursor:default; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+  .chips { display:flex; gap:8px; flex-wrap:wrap; }
+  .chip { border:1px solid var(--line); background:var(--surface); border-radius:999px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  .chip:hover { border-color:var(--accent); color:var(--accent); }
+  .tag { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:999px; background:var(--surface-2); color:var(--muted); }
+  .tag.tutor { background:color-mix(in srgb, var(--a-tutor) 15%, transparent); color:var(--a-tutor); }
+  .pill { display:inline-block; font-size:12px; font-weight:700; padding:2px 10px; border-radius:999px; }
+  .pill.understood { background:var(--ok-soft); color:var(--ok); } .pill.partly { background:var(--partly-soft); color:var(--partly); }
+  .pill.gap { background:var(--gap-soft); color:var(--gap); } .pill.none { background:var(--surface-2); color:var(--muted); }
+  .error { background:var(--gap-soft); color:var(--gap); border-radius:10px; padding:10px 14px; margin-top:12px; }
+  .note-box { margin-top:14px; } .note-box label { font-weight:600; font-size:13px; display:block; margin-bottom:4px; }
+
+  /* progress */
+  .working { display:flex; gap:14px; align-items:flex-start; }
+  .spinner { width:22px; height:22px; border:3px solid var(--accent-soft); border-top-color:var(--accent); border-radius:50%;
+             animation:spin 1s linear infinite; flex:none; margin-top:2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .ticker { list-style:none; padding:0; margin:8px 0 0; font-size:14px; }
+  .ticker li { padding:3px 0; color:var(--muted); } .ticker li:last-child { color:var(--ink); }
+
+  /* learn */
+  .concept { border-left:4px solid var(--accent); }
+  .example { border:1px solid var(--line); border-radius:12px; padding:14px; margin-top:12px; background:var(--bg); }
+  .example .q { font-weight:600; margin:6px 0 10px; }
+  .steps { list-style:none; padding:0; margin:0; counter-reset:s; }
+  .steps li { counter-increment:s; padding:6px 0 6px 34px; position:relative; font-family:ui-monospace, Consolas, monospace; font-size:14px; }
+  .steps li::before { content:counter(s); position:absolute; left:0; top:5px; width:24px; height:24px; border-radius:50%;
+                      background:var(--accent-soft); color:var(--accent); font:700 12px/24px system-ui; text-align:center; }
+  .steps li .uses { font-family:system-ui; font-size:12px; color:var(--muted); margin-left:6px; }
+  .explain { margin-top:10px; font-size:14px; }
+
+  /* practise & results */
+  .problem .q { margin:6px 0 10px; }
+  .result { display:grid; gap:6px; }
+  .result .head { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .fixnote { font-size:13px; background:var(--accent-soft); border-radius:8px; padding:6px 10px; }
+  .summary { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px; }
+  .summary div { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:12px; text-align:center; }
+  .summary b { display:block; font-size:26px; }
+  .revise { border-radius:12px; padding:12px 14px; margin-top:10px; }
+  .revise.go { background:var(--ok-soft); } .revise.stay { background:var(--partly-soft); }
+  details summary { cursor:pointer; color:var(--accent); font-weight:600; font-size:14px; margin-top:6px; }
+
+  /* careers */
+  .chain { font-weight:800; color:var(--accent); margin-bottom:8px; }
+  .career-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:12px; }
+  @media (max-width: 800px) { .career-grid { grid-template-columns:1fr; } }
+  pre { background:var(--code-bg); color:var(--code-ink); padding:12px; border-radius:10px; overflow-x:auto; font-size:12px; margin:6px 0; }
+  .task { white-space:pre-wrap; background:var(--surface-2); border-radius:10px; padding:10px 12px; font-size:14px; }
+  .verdict { margin-top:10px; padding:10px 12px; border-radius:10px; font-size:14px; }
+  .verdict.ok { background:var(--ok-soft); } .verdict.bad { background:var(--gap-soft); }
+
+  /* brain */
+  .legend { display:flex; gap:8px; flex-wrap:wrap; align-items:center; font-size:13px; }
+  #map { width:100%; display:block; margin:14px 0; }
+  #map .node { cursor:pointer; } #map text { font-size:11px; font-weight:700; pointer-events:none; fill:#fff; }
+  #map line { stroke:var(--muted); stroke-opacity:.5; stroke-width:1.5; }
+
+  /* colleague log */
+  .log-head { padding:14px 16px 10px; border-bottom:1px solid var(--line); }
+  .log-head h2 { font-size:15px; display:flex; justify-content:space-between; align-items:center; }
+  .log-head .close { border:0; background:none; cursor:pointer; font-size:20px; color:var(--muted); }
+  .counters { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+  .counters div { background:var(--bg); border-radius:10px; padding:6px 8px; }
+  .counters b { display:block; font-size:18px; } .counters small { color:var(--muted); font-size:11px; line-height:1.2; display:block; }
+  #log { overflow-y:auto; flex:1; padding:6px 10px 20px; font-size:13px; }
+  .ev { display:grid; grid-template-columns:auto 1fr; gap:8px; padding:7px 6px; border-radius:8px; }
+  .ev .dot { width:9px; height:9px; border-radius:50%; margin-top:6px; }
+  .ev .who { font-weight:700; } .ev .t { color:var(--muted); font-size:11px; margin-left:6px; }
+  .ev.flag { background:var(--gap-soft); } .ev.fix { background:var(--ok-soft); } .ev.recheck { background:color-mix(in srgb, var(--a-checker) 10%, transparent); }
+  .ev.plan, .ev.reason { background:var(--accent-soft); } .ev.error { background:var(--gap-soft); } .ev.handoff { color:var(--muted); }
+  .ev.flag .kind, .ev.fix .kind, .ev.recheck .kind { font-size:10px; font-weight:800; letter-spacing:.05em; margin-right:4px; }
 </style>
 </head>
 <body>
-<header><h1>Virtual Brain</h1><span>A digital colleague that takes a Grade 10 learner from a textbook chapter to proven understanding to a real career.</span></header>
-<main>
-  <section class="card">
-    <h2>1. Upload</h2>
-    <label for="chapter">Textbook chapter (with worked solutions)</label>
-    <textarea id="chapter" placeholder="Paste the chapter, or choose a .txt file"></textarea>
-    <input type="file" accept=".txt" data-target="chapter">
-    <label for="working">Student's working</label>
-    <textarea id="working" placeholder="Paste the student's working, or choose a .txt file"></textarea>
-    <input type="file" accept=".txt" data-target="working">
-    <label for="notes">Your own notes (optional, start a line with C1: to attach it to a concept)</label>
-    <textarea id="notes" style="height:60px" placeholder="e.g. C2: I draw a Venn diagram first"></textarea>
-    <div class="row">
-      <select id="pick" aria-label="Sample data">
-        <option value="chapter|working|notes">Probability: first attempt</option>
-        <option value="chapter|working_retry|">Probability: improved working</option>
-        <option value="algebra_chapter|algebra_working|algebra_notes">Algebra (earlier topic)</option>
-        <option value="geometry_chapter|geometry_working|">Euclidean geometry</option>
-      </select>
-      <button class="secondary" id="sample">Load sample</button>
-      <button id="run">Run agents</button>
-      <span id="status" class="muted"></span>
-    </div>
-  </section>
+<header>
+  <div class="brand"><div class="logo" aria-hidden="true">✦</div><span class="word">Virtual Brain</span></div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-study" aria-selected="true">Study</button>
+    <button role="tab" id="tab-brain" aria-selected="false">My brain</button>
+  </nav>
+  <div class="spacer"></div>
+  <button id="toggleLog" aria-expanded="true" aria-controls="aside"><span class="pulse"></span><span class="label">Your colleague at work</span><span id="corrBadge" class="tag">0 fixes</span></button>
+</header>
 
-  <section class="card">
-    <h2>2. Agent activity</h2>
-    <div class="counters">
-      <div class="counter"><b id="c-corr">0</b><small>Reviewer corrections</small></div>
-      <div class="counter"><b id="c-human">0</b><small>Human interventions</small></div>
-      <div class="counter"><b id="c-llm">–</b><small>Language model</small></div>
+<div class="layout" id="layout">
+  <main>
+    <div class="wrap">
+      <!-- ============ STUDY ============ -->
+      <section id="view-study">
+        <div class="stepper" id="stepper"></div>
+        <div id="step-body"></div>
+      </section>
+
+      <!-- ============ MY BRAIN ============ -->
+      <section id="view-brain" class="hidden">
+        <div class="card">
+          <h2>Your virtual brain</h2>
+          <p class="lead">Everything your colleague has learned about you: what you've mastered, where you get stuck, your own notes, and where it leads.</p>
+          <div class="legend"><span class="pill understood">understood</span><span class="pill partly">partly</span><span class="pill gap">gap</span><span class="pill none">not yet seen</span><span class="muted">· arrows run from a topic to what builds on it · tap a topic</span></div>
+          <svg id="map" role="img" aria-label="Map of your concepts"></svg>
+          <div id="detail" class="muted">Tap a topic to see its history, your notes and careers.</div>
+          <div class="row"><button class="btn ghost small" id="reset">Reset brain</button></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <aside id="aside" aria-label="Your colleague at work">
+    <div class="log-head">
+      <h2>Your colleague at work <button class="close" id="closeLog" aria-label="Close">×</button></h2>
+      <div class="counters">
+        <div><b id="c-corr">0</b><small>Reviewer corrections</small></div>
+        <div><b id="c-human">0</b><small>Human interventions</small></div>
+        <div><b id="c-llm">–</b><small>Language model</small></div>
+      </div>
     </div>
     <div id="log" aria-live="polite"></div>
-  </section>
+  </aside>
+</div>
 
-  <section class="card">
-    <h2>3. Marks per problem</h2>
-    <table><thead><tr><th>Problem</th><th>Concept</th><th>Mark</th><th>Why</th></tr></thead><tbody id="results"></tbody></table>
-    <div id="recalls"></div>
-  </section>
-
-  <section class="card">
-    <h2>4. Virtual brain <button class="secondary" id="reset" style="float:right;padding:3px 10px;font-size:12px">Reset brain</button></h2>
-    <div class="legend muted"><span class="pill understood">understood</span> <span class="pill partly">partly</span>
-      <span class="pill gap">gap</span> <span class="pill na">not yet seen</span> · arrows point from a topic to what builds on it · click a topic</div>
-    <svg id="map" role="img" aria-label="Concept map"></svg>
-    <div id="detail" class="muted">Click a topic to see its history and your notes.</div>
-  </section>
-
-  <section class="card wide">
-    <h2>5. Career link</h2>
-    <div id="careers" class="muted">Concepts marked understood unlock a real career application here.</div>
-  </section>
-</main>
 <script>
 const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const AGENT_COLOR = { 'Planner':'--a-planner', 'Tutor':'--a-tutor', 'Checker':'--a-checker', 'Reviewer':'--a-reviewer',
+                      'Brain':'--a-brain', 'Career guide':'--a-career', 'Orchestrator':'--a-orch' };
+const STEPS = ['Chapter', 'Learn', 'Practise', 'Results', 'Real world'];
+
+let S = null;              // latest server state
 let since = 0, timer = null;
+let step = 0, lastStage = null;
+let sampleId = null, samples = [];
+let answers = {}, notes = {}, revealed = {}; // what the student typed; worked-example steps shown
+let renderedKey = '';      // avoid wiping text boxes on re-render
+let selected = null;
 
-document.querySelectorAll('input[type=file]').forEach(inp => inp.addEventListener('change', async () => {
-  if (inp.files[0]) $(inp.dataset.target).value = await inp.files[0].text();
-}));
-
-$('sample').onclick = async () => {
-  const [c, w, n] = $('pick').value.split('|');
-  const get = async name => name ? (await fetch('/api/sample/' + name)).text() : '';
-  $('chapter').value = await get(c);
-  $('working').value = await get(w);
-  $('notes').value = await get(n);
-};
-$('reset').onclick = async () => {
-  const r = await fetch('/api/brain/reset', { method: 'POST' });
-  if (!r.ok) { $('status').textContent = (await r.json()).detail; return; }
-  selected = null; poll();
-};
-
-$('run').onclick = async () => {
-  const body = new FormData();
-  body.append('chapter', $('chapter').value);
-  body.append('working', $('working').value);
-  body.append('notes', $('notes').value);
-  const r = await fetch('/api/run', { method: 'POST', body });
-  if (!r.ok) { $('status').textContent = (await r.json()).detail || 'Could not start'; return; }
-  since = 0; $('log').innerHTML = ''; $('results').innerHTML = '';
-  $('run').disabled = true;
-  clearInterval(timer); timer = setInterval(poll, 600); poll();
-};
-
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const pill = lvl => `<span class="pill ${lvl === 'not attempted' ? 'na' : lvl}">${esc(lvl)}</span>`;
-
-async function poll() {
+// ---------------------------------------------------------------- polling
+let inflight = null, evs = [];
+function poll() {  // one request at a time, so events are never added twice
+  if (!inflight) inflight = pollOnce().finally(() => inflight = null);
+  return inflight;
+}
+async function pollOnce() {
   const s = await (await fetch('/api/state?since=' + since)).json();
-  for (const e of s.events) {
-    const div = document.createElement('div');
-    div.className = 'ev k-' + e.kind;
-    div.innerHTML = `<span class="t">${e.t}</span><span class="who">${esc(e.agent)}</span> · ${esc(e.msg)}`;
-    $('log').appendChild(div);
-    since = e.i + 1;
-  }
-  if (s.events.length) $('log').scrollTop = $('log').scrollHeight;
+  for (const e of s.events) if (e.i >= since) { addEvent(e); evs.push(e); }
+  if (s.events.length) since = s.events[s.events.length - 1].i + 1;
+  const prevStage = S && S.stage;
+  S = { ...s, events: undefined };
+  const busy = s.stage === 'preparing' || s.stage === 'checking';
+  document.body.classList.toggle('busy', busy);
   $('c-corr').textContent = s.counters.reviewer_corrections;
   $('c-human').textContent = s.counters.human_interventions;
   $('c-llm').textContent = s.llm;
-  $('status').textContent = s.status === 'running' ? 'Agents working…' : s.status;
-  const names = Object.fromEntries(s.concepts.map(c => [c.id, c.name]));
-  $('results').innerHTML = Object.entries(s.results).map(([id, r]) => {
-    const prev = r.checker && r.checker.level !== r.level ? `<s>${esc(r.checker.level)}</s> → ` : '';
-    return `<tr><td>${id}</td><td>${esc(names[r.concept] || r.concept)}</td><td>${prev}${pill(r.level)}</td><td>${esc(r.detail)}</td></tr>`;
-  }).join('');
-  drawBrain(s.brain);
-  drawCareers(s.careers);
-  $('recalls').innerHTML = s.recalls.length ? '<h2 style="margin-top:14px">Revise first</h2>' + s.recalls.map(r => `
-    <div class="verdict ${r.cause ? 'ok' : 'bad'}"><b>${esc(r.problem)} · ${esc(r.message)}</b><br>
-      <span class="muted">Brain guessed ${esc(r.guess)}. Reviewer ${r.cause ? (r.confirmed ? 'confirmed' : 'corrected') : 'rejected'}: ${esc(r.why)}.</span>
-      ${r.notes.length ? `<br>Your own note: “${esc(r.notes[r.notes.length - 1])}”` : ''}</div>`).join('') : '';
-  if (s.status !== 'running') { clearInterval(timer); $('run').disabled = false; }
+  $('corrBadge').textContent = `${s.counters.reviewer_corrections} fix${s.counters.reviewer_corrections === 1 ? '' : 'es'}`;
+  if (s.stage !== prevStage) onStage(s.stage, prevStage);
+  render();
+  drawBrain();
+  if (!busy) { clearInterval(timer); timer = null; }
 }
-let careerKey = '';
-function drawCareers(cards) {
-  const key = JSON.stringify(cards.map(c => [c.concept, c.result && c.result.msg]));
-  if (key === careerKey) return;  // don't wipe what the student is typing
-  careerKey = key;
-  if (!cards.length) { $('careers').innerHTML = 'Concepts marked understood unlock a real career application here.'; return; }
-  $('careers').className = '';
-  $('careers').innerHTML = cards.map(c => `
-    <div class="chain">${c.chain.map(esc).join(' → ')}</div>
-    <p>${esc(c.explain)}</p>
-    <div class="career-grid">
-      <div><b>The code</b> (ran on the server) <pre>${esc(c.code)}</pre><b>Output:</b> <code>${esc(c.output)}</code></div>
-      <div><b>Your turn: prove it by hand</b><div class="task">${esc(c.task)}</div>
-        <label for="hand-${c.concept}">Your hand maths</label>
-        <textarea id="hand-${c.concept}" style="height:80px"></textarea>
-        <div class="row"><button class="secondary" onclick="loadHand('${c.concept}','hand')">Load sample hand maths</button>
-          <button class="secondary" onclick="loadHand('${c.concept}','hand_fixed')">Load corrected</button>
-          <button onclick="checkHand('${c.concept}')">Check my hand maths</button></div>
-        ${c.result ? `<div class="verdict ${c.result.ok ? 'ok' : 'bad'}"><b>Reviewer:</b> ${esc(c.result.msg)}</div>` : ''}
-      </div>
-    </div>`).join('<hr>');
-}
-async function loadHand(concept, name) {
-  $('hand-' + concept).value = await (await fetch('/api/sample/' + name)).text();
-}
-async function checkHand(concept) {
-  const body = new FormData();
-  body.append('concept', concept);
-  body.append('working', $('hand-' + concept).value);
-  const typed = $('hand-' + concept).value;
-  const r = await fetch('/api/career/check', { method: 'POST', body });
-  if (!r.ok) { $('status').textContent = (await r.json()).detail; return; }
-  await poll();
-  if ($('hand-' + concept)) $('hand-' + concept).value = typed;
+function startPolling() { if (!timer) timer = setInterval(poll, 700); poll(); }
+
+function onStage(stage, prev) {
+  if (stage === 'ready' && prev === 'preparing') step = 1;
+  if (stage === 'checked' && prev === 'checking') step = 3;
+  if (stage === 'start') step = 0;
 }
 
-let selected = null, lastBrain = null;
-function drawBrain(brain) {
-  lastBrain = brain;
-  const C = brain.concepts, keys = Object.keys(C);
-  const depth = {};
+function addEvent(e) {
+  const div = document.createElement('div');
+  div.className = 'ev ' + e.kind;
+  const kind = { flag: 'FLAG', fix: 'FIX', recheck: 'RE-CHECK' }[e.kind];
+  div.innerHTML = `<span class="dot" style="background:var(${AGENT_COLOR[e.agent] || '--a-orch'})"></span>
+    <div><span class="who" style="color:var(${AGENT_COLOR[e.agent] || '--a-orch'})">${esc(e.agent)}</span><span class="t">${e.t}</span><br>
+    ${kind ? `<span class="kind">${kind}</span>` : ''}${esc(e.msg)}</div>`;
+  $('log').appendChild(div);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+// ---------------------------------------------------------------- study view
+function maxStep() {
+  if (!S || !S.chapter) return 0;
+  if (S.stage === 'checked' || Object.keys(S.results).length) return S.careers.length ? 4 : 3;
+  return 2;
+}
+
+function render() {
+  const max = maxStep();
+  if (step > max) step = max;
+  $('stepper').innerHTML = STEPS.map((t, i) => `<button ${i > max ? 'disabled' : ''} ${i === step ? 'aria-current="step"' : ''}
+      class="${i < step ? 'done' : ''}" onclick="goStep(${i})"><span class="n">Step ${i + 1}</span><span class="t">${t}</span></button>`).join('');
+  const key = [step, S.stage, S.chapter && S.chapter.problems.map(p => p.id).join(), JSON.stringify(S.results),
+               JSON.stringify(S.recalls), JSON.stringify(S.careers.map(c => [c.concept, c.result && c.result.msg])), S.error].join('|');
+  if (key === renderedKey && S.stage !== 'preparing' && S.stage !== 'checking') return;
+  renderedKey = key;
+  const body = $('step-body');
+  body.innerHTML = [renderChapter, renderLearn, renderPractise, renderResults, renderCareers][step]();
+  restoreInputs();
+}
+function goStep(i) { step = i; renderedKey = ''; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+function recentTicker() {
+  const items = evs.filter(e => e.kind !== 'handoff').slice(-5).map(e => `<li><b>${esc(e.agent)}:</b> ${esc(e.msg)}</li>`);
+  return `<ul class="ticker">${items.join('')}</ul>`;
+}
+
+function renderChapter() {
+  if (S.stage === 'preparing') {
+    return `<div class="card"><div class="working"><div class="spinner"></div><div>
+      <h2>Your colleague is preparing this chapter</h2>
+      <p class="lead">Reading it, finding the concepts, writing any missing worked examples and practice, and checking every number before you see it. This can take about a minute.</p>
+      ${recentTicker()}</div></div></div>`;
+  }
+  const b = S.brain.concepts, seen = Object.values(b).filter(c => c.level);
+  const welcome = seen.length ? `<p class="muted" style="margin:0 0 12px">Welcome back. Your brain knows ${seen.length} topic${seen.length > 1 ? 's' : ''}:
+      ${seen.filter(c => c.level === 'understood').length} understood, ${seen.filter(c => c.level !== 'understood').length} still in progress.</p>` : '';
+  return `<div class="card">
+    <h2>What are you studying today?</h2>
+    <p class="lead">Paste or upload the chapter from your textbook. If it only explains and has no worked examples, your colleague will write them for you, check them, and set practice.</p>
+    ${welcome}
+    <textarea id="chapterText" class="mono" rows="10" placeholder="Paste your chapter here…" oninput="sampleId=null"></textarea>
+    <div class="row">
+      <label class="btn ghost small" style="cursor:pointer">Upload .txt<input type="file" accept=".txt,text/plain" class="hidden" onchange="loadFile(this)"></label>
+      <span class="muted" style="font-size:13px">or try a sample:</span>
+      <div class="chips">${samples.map(s => `<button class="chip" onclick="loadSample('${s.id}')">${esc(s.title)}</button>`).join('')}</div>
+    </div>
+    <div class="row"><button class="btn" onclick="prepare()">Prepare my study session</button></div>
+    ${S.error ? `<div class="error">${esc(S.error)}</div>` : ''}
+  </div>`;
+}
+
+function renderLearn() {
+  const ch = S.chapter;
+  return `<div class="card"><h2>Learn: ${esc(ch.subject || 'this chapter')}</h2>
+      <p class="lead" style="margin:0">Work through each idea one step at a time. Jot your own notes in your own words. Your colleague remembers them for later.</p></div>` +
+    ch.concepts.map(c => {
+      const exs = ch.examples.filter(e => e.concept === c.id);
+      return `<div class="card concept"><h3>${esc(c.name)}</h3><p class="muted" style="margin:0">${esc(c.summary)}</p>
+        ${exs.map(e => {
+          const shown = revealed[e.id] ?? 1, lines = e.solution;
+          return `<div class="example">
+            <span class="tag ${e.source === 'tutor' ? 'tutor' : ''}">${e.source === 'tutor' ? 'Written by Tutor · checked by Reviewer' : 'From your textbook'}</span>
+            <div class="q">${esc(e.question)}</div>
+            <ol class="steps">${lines.slice(0, shown).map(l => {
+              const m = l.match(/\(uses:\s*([^)]*)\)/i);
+              return `<li>${esc(l.replace(/\(uses:[^)]*\)/i, '').trim())}${m ? `<span class="uses">uses ${esc(m[1])}</span>` : ''}</li>`; }).join('')}</ol>
+            <div class="row" style="margin-top:8px">${shown < lines.length
+              ? `<button class="btn ghost small" onclick="reveal('${e.id}',1)">Next step</button><button class="btn ghost small" onclick="reveal('${e.id}',99)">Show all</button>`
+              : (e.explain ? `<div class="explain">💡 ${esc(e.explain)}</div>` : '')}</div>
+          </div>`; }).join('') || '<p class="muted" style="font-size:14px">No worked example for this one yet.</p>'}
+        <div class="note-box"><label for="note-${c.id}">My notes on ${esc(c.name)}</label>
+          <textarea id="note-${c.id}" rows="2" data-note="${c.id}" placeholder="In your own words…"></textarea></div>
+      </div>`; }).join('') +
+    `<div class="row"><button class="btn" onclick="goStep(2)">I'm ready to practise →</button></div>`;
+}
+
+function renderPractise() {
+  const ch = S.chapter, sample = samples.find(s => s.id === sampleId);
+  if (S.stage === 'checking') {
+    return `<div class="card"><div class="working"><div class="spinner"></div><div>
+      <h2>Checking your work</h2><p class="lead">The Checker marks each answer, the Reviewer redoes the maths to make sure the marks are fair, and your brain is updated.</p>
+      ${recentTicker()}</div></div></div>`;
+  }
+  const byConcept = Object.fromEntries(ch.concepts.map(c => [c.id, c.name]));
+  return `<div class="card"><h2>Practise</h2>
+      <p class="lead" style="margin:0">Show your working, one step per line, like <code>P(red) = 3/10</code>. Any correct method counts, not just the textbook's.</p>
+      ${sample && sample.has_answers ? `<div class="row"><span class="muted" style="font-size:13px">Demo:</span>
+        <button class="chip" onclick="fillSample(false)">Fill sample answers</button>
+        ${sample.has_retry ? `<button class="chip" onclick="fillSample(true)">Fill improved answers</button>` : ''}</div>` : ''}</div>` +
+    ch.problems.map(p => `<div class="card problem">
+        <span class="tag">${esc(byConcept[p.concept] || p.concept)}</span> ${p.source === 'tutor' ? '<span class="tag tutor">Practice by Tutor</span>' : ''}
+        <div class="q"><b>${esc(p.id)}.</b> ${esc(p.question)}</div>
+        <textarea class="mono" rows="3" data-answer="${p.id}" aria-label="Your working for ${esc(p.id)}" placeholder="Your working…"></textarea>
+        ${S.results[p.id] ? `<div style="margin-top:6px">Last check: ${pill(S.results[p.id].level)}</div>` : ''}
+      </div>`).join('') +
+    `<div class="row"><button class="btn" onclick="check()">Check my work</button></div>
+     ${S.error ? `<div class="error">${esc(S.error)}</div>` : ''}`;
+}
+
+const pill = lvl => `<span class="pill ${['understood','partly','gap'].includes(lvl) ? lvl : 'none'}">${esc(lvl)}</span>`;
+
+function renderResults() {
+  const ch = S.chapter, res = S.results, levels = Object.values(res).map(r => r.level);
+  const count = l => levels.filter(x => x === l).length;
+  const byConcept = Object.fromEntries(ch.concepts.map(c => [c.id, c.name]));
+  const cards = ch.problems.filter(p => res[p.id]).map(p => {
+    const r = res[p.id], corrected = r.checker && r.checker.level !== r.level;
+    return `<div class="card result">
+      <div class="head"><b>${esc(p.id)}</b><span class="tag">${esc(byConcept[p.concept] || '')}</span>${pill(r.level)}</div>
+      <div class="muted" style="font-size:14px">${esc(p.question)}</div>
+      ${corrected ? `<div class="fixnote">🔁 The Checker first marked this <b>${esc(r.checker.level)}</b>. The Reviewer redid the maths, found your method was valid, and had it corrected.</div>` : ''}
+      <div>${esc(r.detail)}</div>
+      <details><summary>Show the memo</summary><ol class="steps">${p.solution.map(l => `<li>${esc(l.replace(/\(uses:[^)]*\)/i, '').trim())}</li>`).join('')}</ol></details>
+    </div>`; }).join('');
+  const recalls = S.recalls.map(r => `<div class="revise ${r.cause ? 'go' : 'stay'}"><b>${esc(r.problem)}: ${esc(r.message)}</b><br>
+      <span class="muted" style="font-size:13px">Your brain suspected ${esc(r.guess)}. The Reviewer ${r.cause ? (r.confirmed ? 'confirmed it' : 'corrected it') : 'rejected it'}: ${esc(r.why)}.</span>
+      ${r.notes.length ? `<br>📝 Your own note: “${esc(r.notes[r.notes.length - 1])}”` : ''}</div>`).join('');
+  return `<div class="summary"><div><b style="color:var(--ok)">${count('understood')}</b>understood</div>
+      <div><b style="color:var(--partly)">${count('partly')}</b>partly</div><div><b style="color:var(--gap)">${count('gap')}</b>gaps</div></div>
+    ${recalls ? `<div class="card"><h3>What to do next</h3>${recalls}</div>` : ''}
+    ${cards}
+    <div class="row"><button class="btn ghost" onclick="goStep(2)">Practise again</button>
+      ${S.careers.length ? `<button class="btn" onclick="goStep(4)">See it in the real world →</button>` : ''}</div>`;
+}
+
+function renderCareers() {
+  if (!S.careers.length) return `<div class="card"><h2>Real world</h2><p class="lead">Master a concept and your colleague will show you where it is used in a real career.</p></div>`;
+  return S.careers.map(c => `<div class="card">
+    <div class="chain">${c.chain.map(esc).join(' → ')}</div>
+    <p style="margin:0">${esc(c.explain)}</p>
+    <div class="career-grid">
+      <div><b>The code a ${esc(c.chain[3].toLowerCase())} would write</b><pre>${esc(c.code)}</pre>
+        <div style="font-size:14px"><b>Output:</b> <code>${esc(c.output)}</code></div></div>
+      <div><b>Your turn: prove it by hand</b><div class="task">${esc(c.task)}</div>
+        <textarea class="mono" rows="4" data-hand="${c.concept}" style="margin-top:10px" aria-label="Your hand maths"></textarea>
+        <div class="row">
+          <button class="chip" onclick="loadHand('${c.concept}','hand')">Sample hand maths</button>
+          <button class="chip" onclick="loadHand('${c.concept}','hand_fixed')">Corrected</button>
+          <button class="btn small" onclick="checkHand('${c.concept}')">Check my hand maths</button></div>
+        ${c.result ? `<div class="verdict ${c.result.ok ? 'ok' : 'bad'}"><b>Reviewer:</b> ${esc(c.result.msg)}</div>` : ''}
+      </div></div></div>`).join('');
+}
+
+// keep typed text across re-renders
+function restoreInputs() {
+  document.querySelectorAll('[data-answer]').forEach(t => { t.value = answers[t.dataset.answer] || ''; t.oninput = () => answers[t.dataset.answer] = t.value; });
+  document.querySelectorAll('[data-note]').forEach(t => { t.value = notes[t.dataset.note] || ''; t.oninput = () => notes[t.dataset.note] = t.value; });
+  document.querySelectorAll('[data-hand]').forEach(t => { t.value = answers['hand:' + t.dataset.hand] || ''; t.oninput = () => answers['hand:' + t.dataset.hand] = t.value; });
+  const ct = $('chapterText'); if (ct) { ct.value = answers.__chapter || ''; ct.addEventListener('input', () => answers.__chapter = ct.value); }
+}
+
+// ---------------------------------------------------------------- actions
+async function loadSample(id) {
+  answers.__chapter = await (await fetch('/api/sample/' + id)).text();
+  $('chapterText').value = answers.__chapter; sampleId = id;
+}
+async function loadFile(input) {
+  if (!input.files[0]) return;
+  answers.__chapter = await input.files[0].text(); $('chapterText').value = answers.__chapter; sampleId = null;
+}
+async function prepare() {
+  const body = new FormData(); body.append('chapter', answers.__chapter || '');
+  const r = await fetch('/api/prepare', { method: 'POST', body });
+  if (!r.ok) return alertBox((await r.json()).detail);
+  const keepChapter = answers.__chapter, keepSample = sampleId;
+  answers = { __chapter: keepChapter }; notes = {}; revealed = {}; sampleId = keepSample;
+  await inflight;  // let any old-session request finish before resetting the log
+  since = 0; evs = []; $('log').innerHTML = ''; renderedKey = '';
+  startPolling();
+}
+async function fillSample(retry) {
+  const d = await (await fetch(`/api/sample/${sampleId}/answers${retry ? '?retry=true' : ''}`)).json();
+  Object.assign(answers, d.answers); Object.assign(notes, d.notes); renderedKey = ''; render();
+}
+async function check() {
+  const a = Object.fromEntries(Object.entries(answers).filter(([k]) => /^P\d+$/.test(k)));
+  const body = new FormData(); body.append('answers', JSON.stringify(a)); body.append('notes', JSON.stringify(notes));
+  const r = await fetch('/api/check', { method: 'POST', body });
+  if (!r.ok) return alertBox((await r.json()).detail);
+  startPolling();
+}
+function reveal(id, n) { revealed[id] = (revealed[id] ?? 1) + n; renderedKey = ''; render(); }
+async function loadHand(concept, name) { answers['hand:' + concept] = await (await fetch('/api/sample/' + name)).text(); renderedKey = ''; render(); }
+async function checkHand(concept) {
+  const body = new FormData(); body.append('concept', concept); body.append('working', answers['hand:' + concept] || '');
+  const r = await fetch('/api/career/check', { method: 'POST', body });
+  if (!r.ok) return alertBox((await r.json()).detail);
+  await poll();
+}
+function alertBox(msg) { S.error = msg; renderedKey = ''; render(); }
+
+// ---------------------------------------------------------------- brain map
+function drawBrain() {
+  if (!S) return;
+  const C = S.brain.concepts, keys = Object.keys(C), depth = {};
   const d = k => depth[k] ?? (depth[k] = 1 + Math.max(-1, ...(C[k].builds_on || []).filter(b => C[b]).map(d)));
   keys.forEach(d);
   const cols = {}; keys.forEach(k => (cols[depth[k]] = cols[depth[k]] || []).push(k));
-  const W = 150, H = 34, GX = 40, GY = 14, nCols = Object.keys(cols).length;
+  const W = 150, H = 36, GX = 40, GY = 14, nCols = Object.keys(cols).length;
   const rows = Math.max(...Object.values(cols).map(c => c.length));
   const pos = {};
   Object.entries(cols).forEach(([c, ks]) => ks.forEach((k, i) => pos[k] = { x: c * (W + GX), y: i * (H + GY) }));
+  const color = l => ({ understood: 'var(--ok)', partly: 'var(--partly)', gap: 'var(--gap)' }[l] || '#8f8e99');
   const jobs = keys.flatMap(k => (C[k].careers || []).map(c => ({ k, c })));
-  const svg = $('map');
-  const totalCols = nCols + (jobs.length ? 1 : 0);
-  const color = l => ({ understood: 'var(--ok)', partly: 'var(--partly)', gap: 'var(--gap)' }[l] || '#9a9a9a');
   let out = '';
   const used = new Set();
   jobs.forEach(({ k, c }) => {
-    let y = pos[k].y;
-    while (used.has(y)) y += H + GY;  // next free row in the career column
-    used.add(y);
+    let y = pos[k].y; while (used.has(y)) y += H + GY; used.add(y);
     const x = nCols * (W + GX);
     out += `<line x1="${pos[k].x + W}" y1="${pos[k].y + H / 2}" x2="${x}" y2="${y + H / 2}" marker-end="url(#arr)" stroke-dasharray="4 3"/>
-      <g><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="17" fill="var(--accent)"/><title>${esc(c.application)} · ${esc(c.use)}</title>
-      <text x="${x + 10}" y="${y + 21}">💼 ${esc(c.career)}</text></g>`;
+      <g><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="18" fill="var(--a-career)"/><title>${esc(c.application)} · ${esc(c.use)}</title>
+      <text x="${x + 12}" y="${y + 22}">${esc(c.career)}</text></g>`;
   });
   keys.forEach(k => (C[k].builds_on || []).filter(b => pos[b]).forEach(b =>
     out += `<line x1="${pos[b].x + W}" y1="${pos[b].y + H / 2}" x2="${pos[k].x}" y2="${pos[k].y + H / 2}" marker-end="url(#arr)"/>`));
   keys.forEach(k => {
-    const n = C[k], p = pos[k], name = n.name.length > 24 ? n.name.slice(0, 23) + '…' : n.name;
-    out += `<g class="node" data-k="${esc(k)}"><rect x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="8" fill="${color(n.level)}"
-      stroke="${k === selected ? '#1d1d1f' : 'none'}" stroke-width="2"/><title>${esc(n.name)}</title>
-      <text x="${p.x + 8}" y="${p.y + 21}">${esc(name)}</text></g>`;
+    const n = C[k], p = pos[k], name = n.name.length > 22 ? n.name.slice(0, 21) + '…' : n.name;
+    out += `<g class="node" data-k="${esc(k)}" tabindex="0" role="button" aria-label="${esc(n.name)}: ${esc(n.level || 'not yet seen')}">
+      <rect x="${p.x}" y="${p.y}" width="${W}" height="${H}" rx="9" fill="${color(n.level)}" stroke="${k === selected ? 'var(--ink)' : 'none'}" stroke-width="2.5"/>
+      <title>${esc(n.name)}</title><text x="${p.x + 10}" y="${p.y + 22}">${esc(name)}</text></g>`;
   });
   const bottom = Math.max(rows * (H + GY), ...[...used].map(y => y + H + GY)) - GY;
-  svg.setAttribute('viewBox', `-4 -4 ${totalCols * (W + GX) - GX + 8} ${bottom + 8}`);
+  const svg = $('map');
+  svg.setAttribute('viewBox', `-4 -4 ${(nCols + (jobs.length ? 1 : 0)) * (W + GX) - GX + 8} ${bottom + 8}`);
   svg.innerHTML = `<defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
-    <path d="M0,0 L10,5 L0,10 z" fill="#b9b5ad"/></marker></defs>` + out;
-  svg.querySelectorAll('.node').forEach(g => g.onclick = () => { selected = g.dataset.k; drawBrain(lastBrain); });
+    <path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>` + out;
+  svg.querySelectorAll('.node').forEach(g => {
+    const pick = () => { selected = g.dataset.k; drawBrain(); };
+    g.onclick = pick; g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') pick(); };
+  });
   if (selected && C[selected]) {
     const n = C[selected];
-    const hist = n.history.map(h => `${esc(h.when)}: ${pill(h.level)} from ${esc(h.from.join(', '))}`).join('<br>') || 'No evidence yet.';
-    const notes = n.notes.map(x => `“${esc(x.text)}” <span class="muted">(${esc(x.when)})</span>`).join('<br>') || 'No notes yet.';
+    const hist = n.history.map(h => `${esc(h.when)} ${pill(h.level)} <span class="muted">from ${esc(h.from.join(', '))}</span>`).join('<br>') || 'No evidence yet.';
+    const nts = n.notes.map(x => `“${esc(x.text)}” <span class="muted">${esc(x.when)}</span>`).join('<br>') || 'No notes yet.';
     const deps = (n.builds_on || []).map(b => esc(C[b]?.name || b)).join(', ') || 'nothing';
     const jobsTxt = (n.careers || []).map(c => `${esc(c.career)} via ${esc(c.application)} (${esc(c.use)}), proven ${esc(c.proven)}`).join('<br>') || 'None yet.';
-    $('detail').innerHTML = `<b>${esc(n.name)}</b> · builds on ${deps}<br><b>History</b><br>${hist}<br><b>Your notes</b><br>${notes}<br><b>Careers</b><br>${jobsTxt}`;
+    $('detail').className = '';
+    $('detail').innerHTML = `<h3>${esc(n.name)}</h3><p class="muted" style="margin:0 0 8px">Builds on ${deps}</p>
+      <b>History</b><br>${hist}<br><br><b>Your notes</b><br>${nts}<br><br><b>Careers</b><br>${jobsTxt}`;
   }
 }
-poll();
+
+// ---------------------------------------------------------------- shell
+function showView(v) {
+  $('view-study').classList.toggle('hidden', v !== 'study');
+  $('view-brain').classList.toggle('hidden', v !== 'brain');
+  $('tab-study').setAttribute('aria-selected', v === 'study');
+  $('tab-brain').setAttribute('aria-selected', v === 'brain');
+}
+$('tab-study').onclick = () => showView('study');
+$('tab-brain').onclick = () => showView('brain');
+function setLog(open) {
+  $('layout').classList.toggle('log-closed', !open);
+  $('toggleLog').setAttribute('aria-expanded', open);
+  try { localStorage.setItem('vb-log', open ? '1' : '0'); } catch (e) {}
+}
+$('toggleLog').onclick = () => setLog($('layout').classList.contains('log-closed'));
+$('closeLog').onclick = () => setLog(false);
+$('reset').onclick = async () => {
+  const r = await fetch('/api/brain/reset', { method: 'POST' });
+  if (r.ok) { selected = null; $('detail').className = 'muted'; $('detail').textContent = 'Tap a topic to see its history, your notes and careers.'; poll(); }
+};
+
+(async function init() {
+  let open = window.innerWidth > 1050;
+  try { const v = localStorage.getItem('vb-log'); if (v !== null && window.innerWidth > 1050) open = v === '1'; } catch (e) {}
+  setLog(open);
+  samples = await (await fetch('/api/samples')).json();
+  await poll();
+  if (S.chapter) step = Object.keys(S.results).length ? 3 : 1;
+  renderedKey = ''; render();
+  if (S.stage === 'preparing' || S.stage === 'checking') startPolling();
+})();
 </script>
 </body>
 </html>

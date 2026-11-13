@@ -28,8 +28,10 @@ class Planner:
         self.log = log
 
     def read_chapter(self, text: str, known=()) -> dict:
+        """Split a chapter into concepts, worked examples (E) and practice problems (P).
+        Solutions may be missing: the Tutor fills those gaps later."""
         if not text.strip():
-            raise ValueError("The chapter is empty. Upload a chapter with at least one worked example.")
+            raise ValueError("The chapter is empty. Paste or upload the chapter you are studying.")
         chapter, how = None, ""
         try:
             chapter = self._read_with_model(text, known)
@@ -39,56 +41,86 @@ class Planner:
         if chapter is None:
             chapter = self._read_with_rules(text)
             how = "read by rule-based parser"
+            if not chapter["concepts"]:
+                raise ValueError("I could not find the concepts in this chapter without the language model. "
+                                 "Check the model is available, or label concepts 'Concept C1: name'.")
         self._validate(chapter, text)
+        for item in chapter["examples"] + chapter["problems"]:
+            item["source"] = "chapter"
+        solved = sum(1 for p in chapter["problems"] if p["solution"])
         self.log(self.name, "info",
-                 f"Chapter {how}: {len(chapter['concepts'])} concepts, {len(chapter['problems'])} practice problems.",
-                 {"concepts": chapter["concepts"]})
+                 f"Chapter {how}: {len(chapter['concepts'])} concepts, {len(chapter['examples'])} worked examples, "
+                 f"{len(chapter['problems'])} exercises ({solved} with solutions).", {"concepts": chapter["concepts"]})
         return chapter
 
     def _read_with_model(self, text: str, known) -> dict:
         data = llm.complete_json(
-            "Read this Grade 10 maths textbook chapter. Split it into concepts and practice problems.\n"
+            "Read this Grade 10 maths textbook chapter. Split it into concepts, worked examples and exercises.\n"
             f"The learner's brain already has these concepts (key, name): {[(k, n) for k, n, _ in known]}\n"
             "Keep concept names as written in the chapter. If a chapter concept is the same as a known one, set "
             "brain_key to its key. List in builds_on the known keys it directly depends on.\n"
+            "A worked example is a question the chapter solves for the reader. An exercise is a question for the "
+            "student; if the chapter gives its solution or memo, include it, otherwise use an empty list. "
+            "If the chapter only explains and has no questions, return empty lists. Never invent questions or solutions.\n"
             'Return {"subject":"...","concepts":[{"id":"C1","name":"...","summary":"one sentence",'
             '"brain_key":"key or null","builds_on":["key"]}],'
-            '"problems":[{"id":"P1","concept":"C1","question":"...","solution":["one calculation per line"]}]}.\n'
-            "Copy each worked-solution line exactly as written, including any '(uses: ...)' tag. "
+            '"examples":[{"id":"E1","concept":"C1","question":"...","solution":["one calculation per line"]}],'
+            '"problems":[{"id":"P1","concept":"C1","question":"...","solution":[]}]}.\n'
+            "Copy each solution line exactly as written, including any '(uses: ...)' tag. "
             "Do not change, add or correct any number.\n\nCHAPTER:\n" + text)
         if not isinstance(data, dict):
             raise ValueError("unexpected shape")
+        data.setdefault("examples", [])
+        data.setdefault("problems", [])
         self._validate(data, text)
-        tags = sum(line.count("(uses:") for p in data["problems"] for line in p["solution"])
-        if tags < text.count("(uses:"):
-            raise ValueError("model dropped the (uses: ...) skill tags from worked solutions")
+        lines = [l for it in data["examples"] + data["problems"] for l in it.get("solution", [])]
+        if sum(l.count("(uses:") for l in lines) < text.count("(uses:"):
+            raise ValueError("model dropped the (uses: ...) skill tags from solutions")
         return data
 
     @staticmethod
     def _read_with_rules(text: str) -> dict:
-        concepts, problems = [], []
-        for m in re.finditer(r"^Concept\s+(C\d+):\s*(.+)\n((?:.+\n?)*)", text, flags=re.M):
-            concepts.append({"id": m.group(1), "name": m.group(2).strip(), "summary": m.group(3).strip()})
-        for m in re.finditer(r"^Problem\s+(P\d+)\s*\((C\d+)\):\s*(.+?)\nWorked solution:\s*\n((?:[^\n]+\n?)*)",
-                             text, flags=re.M | re.S):
-            problems.append({"id": m.group(1), "concept": m.group(2), "question": m.group(3).strip(),
-                             "solution": [l.strip() for l in m.group(4).splitlines() if l.strip()]})
+        """Reader for labelled chapters: 'Concept C1: name', 'Example E1 (C1): ...', 'Problem P1 (C1): ...'
+        with an optional 'Worked solution:' / 'Memo:' / 'Solution:' section."""
+        concepts, examples, problems = [], [], []
+        head = re.compile(r"^(Concept|Example|Worked example|Problem|Exercise)\s+([CEP]\d+)\s*(?:\((C\d+)\))?\s*:\s*(.*)$", re.I)
+        for block in re.split(r"\n\s*\n", text):
+            lines = [l.strip() for l in block.strip().splitlines() if l.strip()]
+            m = head.match(lines[0]) if lines else None
+            if not m:
+                continue
+            kind, iid, concept, first = m.group(1).lower(), m.group(2).upper(), m.group(3), m.group(4).strip()
+            if kind == "concept":
+                concepts.append({"id": iid, "name": first, "summary": " ".join(lines[1:])})
+                continue
+            question, solution, in_sol = [first], [], False
+            for l in lines[1:]:
+                if re.match(r"^(worked solution|memo|solution)\s*:\s*$", l, re.I):
+                    in_sol = True
+                elif in_sol:
+                    solution.append(l)
+                else:
+                    question.append(l)
+            item = {"id": iid, "concept": concept, "question": " ".join(question).strip(), "solution": solution}
+            (examples if kind in ("example", "worked example") else problems).append(item)
         subject = re.search(r"Chapter\s+\d+\s*:\s*([^(\n]+)", text)
-        return {"subject": subject.group(1).strip() if subject else "", "concepts": concepts, "problems": problems}
+        return {"subject": subject.group(1).strip() if subject else "", "concepts": concepts,
+                "examples": examples, "problems": problems}
 
     @staticmethod
     def _validate(ch: dict, source: str):
-        if not ch.get("concepts") or not ch.get("problems"):
-            raise ValueError("No concepts or worked problems found. Label them 'Concept C1: ...' and "
-                             "'Problem P1 (C1): ...' followed by 'Worked solution:'.")
+        if not ch.get("concepts"):
+            raise ValueError("No concepts found in this chapter.")
         ids = {c["id"] for c in ch["concepts"]}
-        for p in ch["problems"]:
-            if p.get("concept") not in ids:
-                raise ValueError(f"{p.get('id')} points to unknown concept {p.get('concept')}")
-            if not parse_steps(p.get("solution", [])):
-                raise ValueError(f"{p.get('id')} has no worked solution with calculations")
-            if not _faithful(p["solution"], source):
-                raise ValueError(f"{p['id']} worked solution has numbers not in the chapter")
+        for item in ch.get("examples", []) + ch.get("problems", []):
+            if item.get("concept") not in ids:
+                raise ValueError(f"{item.get('id')} points to unknown concept {item.get('concept')}")
+            item["solution"] = [l for l in item.get("solution") or [] if str(l).strip()]
+            if item["solution"]:
+                if not parse_steps(item["solution"]):
+                    raise ValueError(f"{item['id']} has a solution with no calculations I can check")
+                if not _faithful(item["solution"], source):
+                    raise ValueError(f"{item['id']} solution has numbers not in the chapter")
 
     def plan(self, chapter: dict, attempted: dict, known=()) -> list:
         """Decide the order of work for this upload. Model proposes; code validates and repairs."""
@@ -137,33 +169,39 @@ class Checker:
     def __init__(self, log):
         self.log = log
 
-    def read_working(self, text: str, chapter: dict) -> dict:
-        """Split the student's working into calculation lines per problem."""
-        if not text.strip():
-            return {}
-        work = None
-        try:
-            data = llm.complete_json(
-                "Read a Grade 10 student's handwritten maths working (already typed out). For each problem, "
-                "rewrite every calculation the student did as one line 'label = expression = ... = value'.\n"
-                "Copy the student's numbers EXACTLY, including mistakes. Never correct anything. "
-                "Leave out problems the student did not attempt.\n"
-                f"Problems: {[(p['id'], p['question']) for p in chapter['problems']]}\n"
-                'Return {"P1":["line", ...], ...}\n\nSTUDENT WORKING:\n' + text)
-            if not isinstance(data, dict) or not all(isinstance(v, list) for v in data.values()):
-                raise ValueError("unexpected shape")
-            if not all(_faithful(v, text) for v in data.values()):
-                raise ValueError("model changed the student's numbers")
-            work = {k: v for k, v in data.items() if parse_steps(v)}
-        except (llm.LLMError, ValueError) as e:
-            self.log(self.name, "warn", f"Model reading of working rejected ({e}). Using rule-based reader.")
-        if work is None:
-            work = {}
-            for m in re.finditer(r"^\s*(P\d+)\s*[:.)]\s*(.*?)(?=^\s*P\d+\s*[:.)]|\Z)", text, flags=re.M | re.S):
-                lines = [l.strip() for l in m.group(2).splitlines() if l.strip()]
-                if parse_steps(lines):
-                    work[m.group(1)] = lines
-        self.log(self.name, "info", f"Read student working for {', '.join(sorted(work)) or 'no problems'}.")
+    def read_answers(self, answers: dict, chapter: dict) -> dict:
+        """Turn the student's answer box for each problem into calculation lines.
+        Plain 'a = b = c' working is read in code; anything else is rewritten by the model,
+        and rejected if the model changed any of the student's numbers."""
+        questions = {p["id"]: p["question"] for p in chapter["problems"]}
+        work, messy = {}, {}
+        for pid, text in answers.items():
+            if pid not in questions or not str(text).strip():
+                continue
+            lines = [l.strip() for l in str(text).splitlines() if l.strip()]
+            if parse_steps(lines):
+                work[pid] = lines
+            else:
+                messy[pid] = str(text)
+        if messy:
+            try:
+                data = llm.complete_json(
+                    "Read a Grade 10 student's maths working. For each problem, rewrite every calculation the student "
+                    "did as one line 'label = expression = ... = value'. Copy the student's numbers EXACTLY, including "
+                    "mistakes. Never correct anything.\n"
+                    f"{[(pid, questions[pid], txt) for pid, txt in messy.items()]}\n"
+                    'Return {"P1":["line", ...], ...}')
+                for pid, lines in (data.items() if isinstance(data, dict) else []):
+                    if pid in messy and isinstance(lines, list) and _faithful(lines, messy[pid]) and parse_steps(lines):
+                        work[pid] = lines
+                    elif pid in messy:
+                        self.log(self.name, "warn", f"{pid}: the model's reading changed the student's numbers, so I ignored it.")
+            except llm.LLMError as e:
+                self.log(self.name, "warn", f"Could not read the free-text working ({e}).")
+            for pid in messy:
+                if pid not in work:
+                    self.log(self.name, "warn", f"{pid}: I could not find a calculation in the answer.")
+        self.log(self.name, "info", f"Read the student's working for {', '.join(sorted(work)) or 'no problems'}.")
         return work
 
     def check(self, problem: dict, student_lines: list, accept_alternative=False, align="index") -> dict:

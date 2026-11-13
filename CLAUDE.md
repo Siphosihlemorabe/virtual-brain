@@ -17,5 +17,7 @@ Judging notes: live demo beats slides; judges will ask to see an error caught an
 ## Project
 
 Virtual Brain — multi-agent digital colleague for Grade 10 students (Planner → Checker → Reviewer → Career guide, plus a growing concept "brain" with recall).
-Build order: (1) upload + Planner + Checker, (2) Reviewer loop, (3) brain levels, (4) career link + hand-maths check, (5) recall algebra → geometry.
+Framing: a study colleague, not a chatbot. The student hands over one chapter, and the agents prepare, practise, check, remember and plan next.
+Original slice (done): Planner/Checker, Reviewer loop, brain, career, recall.
+Parts, one at a time with user review between: (1) student-first UI + Tutor-generated, Reviewer-verified examples [done], (2) practice in different forms, (3) brain as a model of how the student learns, (4) visual simulations (three.js), (5) voice (later; must not become a chatbot).
 Rules: reliable decisions (arithmetic, brain updates) in plain code; LLM only reads text and writes explanations. Live agent log, Reviewer corrections, human-intervention counter. No auth/payments/settings. Commit after each working step.
