@@ -1,6 +1,6 @@
-"""The agents. Each has one role. The language model reads text, writes explanations, and gives the Checker's
-first judgement of the student's working; every number is computed in code (mathcheck), and the Reviewer
-verifies every mark in code and overrules the model when it is wrong."""
+"""The agents. Each has one role. The Checker's first pass is strict code (follow the textbook's steps); when the
+Reviewer sends a mark back, the language model reads the working again (any valid method). Every number is
+computed in code (mathcheck), and the Reviewer verifies every mark in code and overrules either when wrong."""
 import re
 
 from . import llm
@@ -225,8 +225,8 @@ class Checker:
         return work
 
     def model_mark(self, problem: dict, student_lines: list) -> dict:
-        """The Checker's judgement by the language model: is the working right (by any valid method), and did
-        the student use the method the book teaches? The Reviewer verifies the verdict in code afterwards."""
+        """The Checker's re-mark by the language model, after the Reviewer sends a mark back: is the working right
+        (by any valid method), and did the student use the method the book teaches? The Reviewer re-checks it in code."""
         steps = parse_steps(student_lines)
         if not steps:
             raise ValueError("no calculation to judge")

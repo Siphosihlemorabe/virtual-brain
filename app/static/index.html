@@ -432,6 +432,27 @@
   </aside>
 </div>
 
+<script>
+// One session per browser tab when deployed; on this computer everything shares the local brain.
+(function () {
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+  let sid = 'local';
+  if (!local) {
+    try { sid = sessionStorage.getItem('vb-sid') || ''; } catch (e) { sid = ''; }
+    if (!sid) {
+      sid = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+      try { sessionStorage.setItem('vb-sid', sid); } catch (e) {}
+    }
+  }
+  const realFetch = window.fetch.bind(window);
+  window.fetch = (url, opts = {}) => {
+    if (typeof url === 'string' && url.startsWith('/api/')) {
+      opts = { ...opts, headers: { ...(opts.headers || {}), 'X-VB-Session': sid } };
+    }
+    return realFetch(url, opts);
+  };
+})();
+</script>
 <script src="/static/vendor/three.min.js"></script>
 <script src="/static/lab.js"></script>
 <script src="/static/spamlab.js"></script>

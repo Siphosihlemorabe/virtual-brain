@@ -13,13 +13,14 @@ from .tutor import Tutor
 
 
 class Session:
-    def __init__(self):
+    def __init__(self, brain_path=None):
+        self.brain_path = brain_path  # None means the default data/brain.json
         self.events = []
         self.stage = "start"  # start | preparing | ready | checking | checked | designing | careering | error
         self.error = ""
         self.chapter = None
         self.results = {}
-        self.brain = brainstore.load()
+        self.brain = brainstore.load(self.brain_path)
         self.careers = []
         self.recalls = []
         self.round, self.round_plan = 1, []
@@ -96,21 +97,29 @@ class Session:
 
     # ------------------------------------------------------------ phase 2: check the student's practice
 
-    # How the Checker re-marks when the Reviewer sends a mark back: from the verified arithmetic, any valid method.
+    # How the Checker re-marks when the Reviewer sends a mark back. It first reads the working again with the
+    # language model (any valid method counts); without a model it re-marks from the verified arithmetic.
     FIXES = {"valid_alternative_method": ({"accept_alternative": True}, "re-marked from the verified arithmetic: any valid method counts"),
              "wrong_step": ({"align": "label", "accept_alternative": True}, "matched steps by what they calculate"),
              "wrong_level": ({"align": "label", "accept_alternative": True}, "re-marked from the verified arithmetic")}
     MAX_ROUNDS = 2
 
-    def mark_and_review(self, p, lines, checker, reviewer):
-        pid = p["id"]
+    def remark(self, p, lines, checker, reason):
+        fix, policy = self.FIXES[reason]
         try:
             mark = checker.model_mark(p, lines)
+            return mark, "read the working again: any valid method counts"
         except (llm.LLMError, ValueError) as e:
-            self.log("Checker", "warn", f"{pid}: model marking unavailable ({e}); marking from the arithmetic instead.")
-            mark = checker.check(p, lines, accept_alternative=True)
+            self.log("Checker", "warn", f"{p['id']}: model re-read unavailable ({e}); re-marking from the arithmetic.")
+            mark = checker.check(p, lines, **fix)
             mark["method"] = checker.code_method(p, lines)
-        method = mark.get("method")
+            return mark, policy
+
+    def mark_and_review(self, p, lines, checker, reviewer):
+        pid = p["id"]
+        # fast first pass in code: does the working follow the textbook's steps?
+        mark = checker.check(p, lines)
+        mark["method"] = checker.code_method(p, lines)
         first = dict(mark)
         self.log("Checker", "mark", f"{pid}: {mark['level'].upper()}. {mark['detail']}", {"problem": pid, **mark})
         self.log("Checker", "handoff", f"Handing {pid} to the Reviewer.")
@@ -130,8 +139,7 @@ class Session:
                      f"{' at step ' + str(mark['step']) if mark['step'] else ''}, but my recomputation says "
                      f"{own['level'].upper()}{' at step ' + str(own['step']) if own['step'] else ''} "
                      f"({own.get('why', '')}). Reason: {rv['reason'].replace('_', ' ')}. Sending back to the Checker.")
-            fix, policy = self.FIXES[rv["reason"]]
-            mark = checker.check(p, lines, **fix)
+            mark, policy = self.remark(p, lines, checker, rv["reason"])
             self.log("Checker", "fix", f"Re-marked {pid} ({policy}): {mark['level'].upper()}. {mark['detail']}")
         else:
             self.counters["human_interventions"] += 1
@@ -140,7 +148,7 @@ class Session:
             mark = {"level": own["level"], "step": own["step"], "detail": own.get("why", "")}
         if mark["level"] != "understood":
             mark["detail"] = explain(p, lines, mark, self.log, learner.summary(self.brain))
-        mark["method"] = method if mark["level"] == "understood" else None
+        mark["method"] = mark.get("method") if mark["level"] == "understood" else None
         self.results[pid] = {"concept": p["concept"], "checker": first, **mark}
 
     def check(self, answers: dict, notes: dict):
@@ -173,9 +181,9 @@ class Session:
             note_text = "\n".join(f"{cid}: {line}" for cid, txt in notes.items() for line in str(txt).splitlines()
                                   if line.strip())
             latest = self.round_results()
-            keymap = brainstore.update(self.brain, chapter, latest, note_text, self.log)
+            keymap = brainstore.update(self.brain, chapter, latest, note_text, self.log, self.brain_path)
             self.noticed = learner.observe(self.brain, chapter, latest, work, keymap, self.log)
-            brainstore.save(self.brain)
+            brainstore.save(self.brain, self.brain_path)
             self.recalls = []
             if any(r["level"] in ("gap", "partly") for r in latest.values()):
                 self.log("Planner", "reason", "Some problems are not yet understood, so before moving on I am asking "
@@ -218,7 +226,7 @@ class Session:
         try:
             if chosen is not None:
                 picked = careers_mod.set_interests(self.brain, chosen)
-                brainstore.save(self.brain)
+                brainstore.save(self.brain, self.brain_path)
                 names = careers_mod.catalogue()["interests"]
                 self.log("Brain", "learn", f"Saved your interests: {', '.join(names[i] for i in picked) or 'none'}.")
             self.careers = CareerGuide(self.log, self.counters).plan(self.brain)
@@ -240,7 +248,7 @@ class Session:
         if res["ok"]:
             self.log("Reviewer", "recheck", f"Hand maths verified. {res['msg']}")
             record_proof(self.brain, card)
-            brainstore.save(self.brain)
+            brainstore.save(self.brain, self.brain_path)
             self.log("Brain", "update", f"{card['concept_name']} linked to career: {' → '.join(card['chain'][1:])} (proven by hand).")
         else:
             self.log("Reviewer", "flag", f"Hand maths sent back to the student. {res['msg']}")
@@ -316,7 +324,7 @@ class Session:
                 record_proof(self.brain, {"concept": "basic-probability", "name": "Data scientist",
                                           "title": "Naive Bayes spam filter",
                                           "about": "Builds filters that sort email using probability."})
-                brainstore.save(self.brain)
+                brainstore.save(self.brain, self.brain_path)
             self.spam["proven"] = True
             self.log("Brain", "update", "Basic probability linked to career: Naive Bayes spam filter → Data scientist "
                                         "(table and hand maths proven by the Reviewer).")

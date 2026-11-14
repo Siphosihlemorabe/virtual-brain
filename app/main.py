@@ -2,9 +2,10 @@
 import json
 import re
 import threading
+import time
 from pathlib import Path
 
-from fastapi import FastAPI, Form, HTTPException
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -17,7 +18,34 @@ ROOT = Path(__file__).resolve().parent.parent
 SAMPLES = ROOT / "samples"
 app = FastAPI(title="Virtual Brain")
 app.mount("/static", StaticFiles(directory=ROOT / "app" / "static"), name="static")
-current = Session()
+
+# One session (and brain) per visitor. The page sends a random id per browser tab in the X-VB-Session header;
+# on localhost it sends "local", which keeps the single brain in data/brain.json.
+SESSIONS: dict = {}
+_sessions_lock = threading.Lock()
+_SID = re.compile(r"^[A-Za-z0-9-]{8,64}$")
+MAX_SESSIONS = 300
+
+
+def _sid(request: Request) -> str:
+    sid = request.headers.get("x-vb-session", "local")
+    return sid if sid == "local" or _SID.match(sid) else "local"
+
+
+def _brain_file(sid: str):
+    return None if sid == "local" else ROOT / "data" / "brains" / f"{sid}.json"
+
+
+def session(request: Request, fresh: bool = False) -> Session:
+    sid = _sid(request)
+    with _sessions_lock:
+        s = SESSIONS.get(sid)
+        if s is None or fresh:
+            if s is None and len(SESSIONS) >= MAX_SESSIONS:  # drop the longest-idle visitor
+                del SESSIONS[min(SESSIONS, key=lambda k: SESSIONS[k].touched)]
+            s = SESSIONS[sid] = Session(_brain_file(sid))
+        s.touched = time.time()
+    return s
 
 # Sample chapters a student can try, with optional sample answers and notes for the demo.
 CHAPTERS = {
@@ -32,7 +60,7 @@ CHAPTERS = {
 }
 
 
-def _busy():
+def _busy(current):
     if current.stage in ("preparing", "checking", "designing", "careering"):
         raise HTTPException(409, "Your colleague is still working. Give it a moment.")
 
@@ -63,7 +91,8 @@ def _threshold(t):
 
 
 @app.get("/api/spamlab")
-def spam_payload():
+def spam_payload(request: Request):
+    current = session(request)
     current.spam_open()
     return spamlab.payload()
 
@@ -76,17 +105,20 @@ def _spam_call(fn, *args):
 
 
 @app.post("/api/spamlab/table")
-def spam_table(words: str = Form("[]"), table: str = Form("{}")):
+def spam_table(request: Request, words: str = Form("[]"), table: str = Form("{}")):
+    current = session(request)
     return _spam_call(current.spam_table, json.loads(words), json.loads(table))
 
 
 @app.post("/api/spamlab/hand")
-def spam_hand(words: str = Form("[]"), working: str = Form("")):
+def spam_hand(request: Request, words: str = Form("[]"), working: str = Form("")):
+    current = session(request)
     return _spam_call(current.spam_hand, json.loads(words), working)
 
 
 @app.get("/api/spamlab/demo")
-def spam_demo(words: str = "[]", slip: bool = False, part: str = "table"):
+def spam_demo(request: Request, words: str = "[]", slip: bool = False, part: str = "table"):
+    current = session(request)
     w = _spam_call(current._spam_words, json.loads(words))
     if part == "hand":
         return {"working": spamlab.demo_hand(spamlab.HAND_EMAIL, w, slip)}
@@ -97,13 +129,15 @@ def spam_demo(words: str = "[]", slip: bool = False, part: str = "table"):
 
 
 @app.post("/api/spamlab/run")
-def spam_run(words: str = Form("[]"), table: str = Form("{}"), mode: str = Form("mine"), threshold: str = Form("0.5")):
+def spam_run(request: Request, words: str = Form("[]"), table: str = Form("{}"), mode: str = Form("mine"), threshold: str = Form("0.5")):
+    current = session(request)
     return _spam_call(current.spam_run, json.loads(words), json.loads(table), mode, _threshold(threshold))
 
 
 @app.post("/api/spamlab/explain")
-def spam_explain(email: str = Form(...), words: str = Form("[]"), table: str = Form("{}"), mode: str = Form("mine"),
-                 threshold: str = Form("0.5")):
+def spam_explain(request: Request, email: str = Form(...), words: str = Form("[]"), table: str = Form("{}"),
+                 mode: str = Form("mine"), threshold: str = Form("0.5")):
+    current = session(request)
     return _spam_call(current.spam_explain, email, json.loads(words), json.loads(table), mode, _threshold(threshold))
 
 
@@ -130,18 +164,18 @@ def sample_answers(name: str, retry: bool = False):
 
 
 @app.post("/api/prepare")
-def prepare(chapter: str = Form("")):
-    global current
-    _busy()
-    current = Session()
+def prepare(request: Request, chapter: str = Form("")):
+    _busy(session(request))
+    current = session(request, fresh=True)  # a new chapter starts a new session; the brain carries over
     current.stage = "preparing"
     threading.Thread(target=current.prepare, args=(chapter,), daemon=True).start()
     return {"ok": True}
 
 
 @app.post("/api/check")
-def check(answers: str = Form("{}"), notes: str = Form("{}")):
-    _busy()
+def check(request: Request, answers: str = Form("{}"), notes: str = Form("{}")):
+    current = session(request)
+    _busy(current)
     if current.chapter is None:
         raise HTTPException(400, "Open a chapter first.")
     try:
@@ -154,8 +188,9 @@ def check(answers: str = Form("{}"), notes: str = Form("{}")):
 
 
 @app.post("/api/practice/next")
-def practice_next():
-    _busy()
+def practice_next(request: Request):
+    current = session(request)
+    _busy(current)
     if current.chapter is None:
         raise HTTPException(400, "Open a chapter first.")
     current.stage = "designing"
@@ -164,13 +199,15 @@ def practice_next():
 
 
 @app.get("/api/state")
-def state(since: int = 0):
+def state(request: Request, since: int = 0):
+    current = session(request)
     return {**current.snapshot(since), "llm": llm.provider(), "llm_stats": llm.stats()}
 
 
 @app.post("/api/interests")
-def save_interests(interests: str = Form("[]")):
-    _busy()
+def save_interests(request: Request, interests: str = Form("[]")):
+    current = session(request)
+    _busy(current)
     try:
         chosen = json.loads(interests)
     except json.JSONDecodeError:
@@ -181,7 +218,8 @@ def save_interests(interests: str = Form("[]")):
 
 
 @app.post("/api/career/whatif")
-def career_whatif(card: str = Form(...), params: str = Form("{}")):
+def career_whatif(request: Request, card: str = Form(...), params: str = Form("{}")):
+    current = session(request)
     try:
         return career.whatif(current.card(card), json.loads(params))
     except (ValueError, json.JSONDecodeError) as e:
@@ -189,7 +227,8 @@ def career_whatif(card: str = Form(...), params: str = Form("{}")):
 
 
 @app.get("/api/career/demo/{card_id}", response_class=PlainTextResponse)
-def career_demo(card_id: str, slip: bool = False):
+def career_demo(request: Request, card_id: str, slip: bool = False):
+    current = session(request)
     try:
         return career.demo_hand(current.card(card_id), slip)
     except ValueError as e:
@@ -197,8 +236,9 @@ def career_demo(card_id: str, slip: bool = False):
 
 
 @app.post("/api/career/check")
-def career_check(card: str = Form(...), working: str = Form("")):
-    _busy()
+def career_check(request: Request, card: str = Form(...), working: str = Form("")):
+    current = session(request)
+    _busy(current)
     try:
         return current.check_career(card, working)
     except ValueError as e:
@@ -206,8 +246,9 @@ def career_check(card: str = Form(...), working: str = Form("")):
 
 
 @app.post("/api/brain/reset")
-def reset_brain():
-    _busy()
-    brainstore.reset()
-    current.brain = brainstore.load()
+def reset_brain(request: Request):
+    current = session(request)
+    _busy(current)
+    brainstore.reset(current.brain_path)
+    current.brain = brainstore.load(current.brain_path)
     return {"ok": True}

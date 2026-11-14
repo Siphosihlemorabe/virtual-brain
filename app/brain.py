@@ -23,21 +23,23 @@ def _seed() -> dict:
     return {"concepts": {k: {**v, "level": None, "history": [], "notes": [], "careers": []} for k, v in seed.items()}}
 
 
-def load() -> dict:
+def load(path=None) -> dict:
+    path = Path(path or PATH)
     with _lock:
-        if PATH.exists():
-            return json.loads(PATH.read_text(encoding="utf-8"))
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
         return _seed()
 
 
-def save(brain: dict):
+def save(brain: dict, path=None):
+    path = Path(path or PATH)
     with _lock:
-        PATH.parent.mkdir(exist_ok=True)
-        PATH.write_text(json.dumps(brain, indent=2), encoding="utf-8")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(brain, indent=2), encoding="utf-8")
 
 
-def reset():
-    save(_seed())
+def reset(path=None):
+    save(_seed(), path)
 
 
 def summary(brain: dict) -> list:
@@ -53,7 +55,7 @@ def resolve_key(brain: dict, concept: dict) -> str:
     return slug(concept["name"])
 
 
-def update(brain: dict, chapter: dict, results: dict, notes: str, log) -> dict:
+def update(brain: dict, chapter: dict, results: dict, notes: str, log, path=None) -> dict:
     """Apply one upload: levels from verified marks, the student's notes, and new links."""
     today = time.strftime("%Y-%m-%d %H:%M")
     keymap = {}
@@ -102,5 +104,5 @@ def update(brain: dict, chapter: dict, results: dict, notes: str, log) -> dict:
             brain["concepts"][key]["notes"].append({"when": today, "text": text})
         if targets:
             log("Brain", "info", f"Saved your note to {', '.join(brain['concepts'][k]['name'] for k in targets)}.")
-    save(brain)
+    save(brain, path)
     return keymap
