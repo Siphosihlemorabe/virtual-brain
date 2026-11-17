@@ -203,7 +203,6 @@ The legacy maths app keeps working throughout, for demos, until we decide to ret
 
 1. **Anthropic API key and budget.** Bedrock can't serve Claude in-Region in eu-north-1, so the product needs an
    Anthropic account. Are you happy with that, and is there a monthly budget?
-2. **React** for the frontend: agreed?
-3. **Which GitHub repo is home?** You have `origin` (nkosana-collab/virtual-brain) and `fork`
-   (Siphosihlemorabe/virtual-brain). CI and branch protection should live on one.
+2. ~~React for the frontend~~ **Agreed** (product spec D10).
+3. ~~Which GitHub repo is home?~~ **Agreed: the fork, `Siphosihlemorabe/virtual-brain`** (product spec D11).
 4. **When to deploy:** this plan stays local until slice 1 works (stage 3). Is that right?

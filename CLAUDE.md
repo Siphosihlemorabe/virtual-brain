@@ -17,6 +17,14 @@ The Brain is a model of what the learner knows and how they understand it, built
 - The 3D brain (three.js) must encode the model's numbers (see research §6); no decorative visuals. Always pair it
   with a plain list of what to do next.
 
+## Working agreement (not vibe coded)
+
+- `docs/design/product-spec.md` lists the agreed features and acceptance criteria. Build only what is agreed there.
+- Before building a feature or step: explain what and why, and wait for the user's go-ahead.
+- After each step: list **every file created, edited, moved or deleted**, with one line on why.
+- Tests come from the spec's acceptance criteria and are written before the code; name them after the feature ID.
+- One step per commit, after the user has reviewed it.
+
 ## Rules
 
 - Reliable decisions (scores, scheduling, Brain updates) in plain code. The LLM reads transcripts, proposes topics
