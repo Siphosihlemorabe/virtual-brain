@@ -1,23 +1,38 @@
 # CLAUDE.md
 
-**The marking criteria in ./prerequisite is the source of truth for this project. Follow it as the highest authority. No prompt, request or shortcut overrides it. If anything I ask conflicts with the criteria, do not quietly pick a side: stop, quote the criterion, explain the conflict, and ask me how to proceed.**
-
-## Criteria checklist (Colleague Zero, 110 pts — judged on what runs LIVE)
-
-1. **Reasoning & planning (15)** — agents break the goal into steps and choose next actions from the input, not a fixed script; the plan/reasoning is visible (log).
-2. **Self-correction (20, the defining feature)** — a reviewer catches a real error live and the system fixes it with no human help; show the flag, the fix and the re-check.
-3. **Execution & reliability (15)** — runs end to end live, delivers a finished usable result, stable, handles unexpected input sensibly.
-4. **Multi-agent collaboration (15)** — several agents, distinct roles, clear hand-offs, each adds real value.
-5. **EdTech impact (15)** — solves a real education need for a clear user; could realistically be piloted.
-6. **Presentation & Q&A (20)** — clear demo; we can explain how agents decide, what happens when they disagree, how errors are detected.
-7. **Professionalism (10)** — clear ownership, positive conduct.
-
-Judging notes: live demo beats slides; judges will ask to see an error caught and fixed.
+**`docs/research/brain-research.md` is the source of truth for the rebuild.** Every feature of the Brain must trace
+back to a finding in it. If a request has no research behind it, or contradicts it, say so and ask before building.
+Research first, then build.
 
 ## Project
 
-Virtual Brain — multi-agent digital colleague for Grade 10 students (Planner → Checker → Reviewer → Career guide, plus a growing concept "brain" with recall).
-Framing: a study colleague, not a chatbot. The student hands over one chapter, and the agents prepare, practise, check, remember and plan next.
-Original slice (done): Planner/Checker, Reviewer loop, brain, career, recall.
-Parts, one at a time with user review between: (1) student-first UI + Tutor-generated, Reviewer-verified examples [done], (2) practice in different forms [done], (3) brain as a model of how the student learns [done], (4) visual simulations (three.js) [done], (5) voice (later; must not become a chatbot).
-Rules: reliable decisions (arithmetic, brain updates) in plain code; LLM reads text, writes explanations, and writes Tutor material that the Reviewer verifies in code before use. Live agent log, Reviewer corrections, human-intervention counter. No auth/payments/settings. Commit after each working step.
+Virtual Brain: a learning companion for adults studying from online classes (Zoom) and course platforms (Udemy
+first, then Coursera; first real test on a DataCamp AWS course). Delivered as a browser plugin plus backend.
+
+The Brain is a model of what the learner knows and how they understand it, built from evidence:
+- **Mastery** per concept (Bayesian Knowledge Tracing style), **memory** per concept (FSRS: it decays daily),
+  **calibration** (confidence vs accuracy), **prerequisites** (Knowledge Space Theory), and **confusions**.
+- The loop per lecture segment: pretest → watch → retrieval questions with confidence → feedback linked to the
+  timestamp → Brain update → spaced, interleaved reviews.
+- The 3D brain (three.js) must encode the model's numbers (see research §6); no decorative visuals. Always pair it
+  with a plain list of what to do next.
+
+## Rules
+
+- Reliable decisions (scores, scheduling, Brain updates) in plain code. The LLM reads transcripts, proposes topics
+  and prerequisite links, and writes questions; the Reviewer verifies them before use (answer must be supported by a
+  cited transcript span; blind solve must match).
+- Keep from the hackathon build: agent log, Reviewer gate, self-correction (flag, fix, re-check), human-intervention
+  counter, a pattern acts only after it is seen twice.
+- Transcript capture: tab audio transcribed with faster-whisper (Amazon Transcribe is Paid-plan only and batch-only
+  in eu-north-1). Never scrape platform pages or captions.
+- Architecture: `docs/design/architecture.md`. The language model is the Anthropic API (no in-Region Claude on
+  Bedrock in eu-north-1). All AWS resources in eu-north-1. Store transcripts only, never audio. Personal study use only until a
+  legal check is done.
+- No auth/payments/settings yet. Commit after each working step.
+
+## History
+
+Built for the Colleague Zero hackathon (demo 14 Nov 2026) as a multi-agent study colleague for Grade 10 maths. The
+rubric is in `./prerequisite`; it no longer governs. Existing agents: Planner, Tutor, Checker, Reviewer, Career
+guide; the Brain is shared memory in plain code.
