@@ -158,6 +158,8 @@ seed script loads one sample course with a recorded transcript.
 | Logs and metrics | **CloudWatch** | Structured logs, plus alarms on job failures and model spend. |
 | Infrastructure as code | **AWS CDK (Python)** | Reviewable, repeatable. Single-Region stacks only (StackSets aren't allowed). |
 | Temporary audio | Never stored in S3: uploaded straight to the worker, transcribed, deleted | Privacy by design. |
+| Screenshots (F21) | **S3**, private, deleted with the learner's data | Kept until the learner deletes them. |
+| Review reminder emails (F23) | **Amazon SES** (on the free plan) | Opt-in digests with unsubscribe. |
 
 **Cost guardrails:** the project has about $140 in free-plan credits, valid until 3 May 2027. Before deploying, we
 set a budget alarm, keep one small task per service, and confirm the project's spend limit in AWS Settings →
@@ -201,8 +203,8 @@ The legacy maths app keeps working throughout, for demos, until we decide to ret
 
 ## 10. Decisions needed from you
 
-1. **Anthropic API key and budget.** Bedrock can't serve Claude in-Region in eu-north-1, so the product needs an
-   Anthropic account. Are you happy with that, and is there a monthly budget?
+1. ~~Anthropic API~~ **Agreed** (product spec §6.1): a model per job, chosen by the evaluation set. A monthly
+   budget is still to set.
 2. ~~React for the frontend~~ **Agreed** (product spec D10).
 3. ~~Which GitHub repo is home?~~ **Agreed: the fork, `Siphosihlemorabe/virtual-brain`** (product spec D11).
 4. **When to deploy:** this plan stays local until slice 1 works (stage 3). Is that right?

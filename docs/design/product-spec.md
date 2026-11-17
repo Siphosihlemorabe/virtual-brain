@@ -1,6 +1,7 @@
 # Product spec and test plan: what we agree to build, and how we prove it works
 
 Date: 17 November 2026. Status: **agreed 17 November 2026** (all decisions in §3 as recommended; CI on the fork).
+§6 records the later gap discussion: its decisions are agreed; the slice for each new feature (§6.6) is proposed.
 
 How to read this: each feature has a short user story, **acceptance criteria** written so each one becomes a test,
 and the test level that proves it. Section 3 lists the product decisions to agree first. Section 4 is the test
@@ -187,3 +188,127 @@ in the step report; you have reviewed it.
 - I explain each feature before building it, and wait for your go-ahead.
 - After each step I list **every file created, edited, moved or deleted**, with one line on why.
 - One feature or step per commit, after your review.
+
+---
+
+## 6. Gap discussion: decisions of 17 November 2026
+
+**Owner:** solo. Siphosihle owns every decision and module for now.
+
+### 6.1 Product direction (agreed)
+
+| Gap | Decision |
+|---|---|
+| Dynamic or focused | **Dynamic engine, focused launch.** Any course works; the launch adds a curated skeleton for **cloud certifications, starting with AWS** (official exam guide domains and task statements). Other courses run in fully dynamic mode, labelled "less certain". |
+| Which AI | **Anthropic API**, a model per job set in config and chosen by measured accuracy on our evaluation set. Start: Sonnet 5 writes questions; Haiku 4.5 for concept matching and the Reviewer's blind check. **No provider that stores learner data outside adequate-protection jurisdictions.** Rough model cost: $0.14–$0.70 per lecture hour; reviews cost nothing. To be measured in slice 1. |
+| Over-reliance on AI | The AI rules in §6.2 apply to every feature. |
+| AI wrong on purpose, learner corrects | Two features: F19 (deliberate, clearly labelled) and F20 (real errors). |
+| Legal check on audio capture | After there is a working app. Until then: personal testing only. |
+| Live Zoom classes | Quizzes **after class only**, never during a live class. |
+| Success metric | **Exam passes and retention.** Also: insights that help find new ways to give lessons. |
+| Privacy notice | Required (F22). |
+| The 3D brain | **A secondary view, not the core.** It shows what the learner has learned, touched and is still confused by, for review. The core value is the stored data, which also guides the AI. Next step: define exactly what we save (§6.5). |
+
+### 6.2 AI rules (apply to every feature)
+
+1. The AI only **proposes**; code and sources **decide**. Marking, the Brain, scheduling and calibration never use a
+   language model.
+2. Every AI claim shown to a learner **cites its source** (a transcript quote, or a screenshot for F21). No source,
+   not shown.
+3. An **independent Reviewer** checks every item before use, ideally on a different model from the writer.
+4. The AI may **abstain** ("not enough testable content here") instead of inventing.
+5. Feedback shows **the lecturer's words**, not AI prose.
+6. AI outputs are **small and structured** (schema-validated JSON).
+7. Quality is **measured**: the evaluation set, plus dispute rates per prompt version (F20).
+
+### 6.3 New features, with acceptance criteria
+
+#### F18. Exam skeleton (the focused launch)
+*As a learner preparing for an AWS exam, I see how ready I am for each part of it.*
+- An exam skeleton (domains, weights, task statements) is stored as data, entered from the official exam guide. **U**
+- Each concept extracted from a lecture is mapped to at most one task statement, or marked "outside the exam". The
+  mapping is proposed by the model and checked against the skeleton's list (no invented task statements). **A**
+- Readiness per domain = mean mastery of its mapped concepts; overall readiness = weighted by domain weight. **U**
+- Courses with no skeleton run in dynamic mode and are labelled "less certain". **API**
+
+#### F19. Spot the error (deliberate)
+*As a learner, I strengthen my memory by catching a planted mistake.*
+Research: erroneous examples improved one-week delayed learning (McLaren, Adams & Mayer, 2015, d = 0.33);
+learners try harder when correcting an agent (protégé effect, Chase et al., 2009).
+- Always **clearly labelled** as a "Spot the error" round; never mixed into normal questions. **E**
+- The planted statement changes **one** fact from a cited quote. Code confirms it differs from the quote, and the
+  Reviewer confirms the quote contradicts it. **A**
+- Where the learner has a confirmed confusion (F11), the planted error uses it (e.g. EBS in place of S3). **U**
+- Every round ends by showing the correct quote and timestamp, whether or not the learner caught it. **E**
+- Catching and correctly fixing the error counts as a correct answer in the Brain; missing it counts as wrong. **U**
+
+#### F20. Report an error (real)
+*As a learner, I can tell the system a question is wrong, and it takes me seriously.*
+- Every question has "This is wrong", with an optional reason. **E**
+- The Reviewer re-checks the item against its quote with the learner's objection. Outcomes:
+  - **AI wrong:** item retired for everyone, the attempt is removed from the Brain, the learner is thanked, and the
+    case is added to the evaluation set. **A**
+  - **Learner wrong:** the quote is shown; the attempt stands. **A**
+  - **Unclear:** item marked disputed for that learner; the attempt doesn't count. **A**
+- One learner's report never changes content for other learners until the Reviewer confirms it. **API**
+- Dispute rate per prompt version is recorded for quality tracking. **API**
+
+#### F21. Screenshots (slides, code, diagrams)
+*As a learner, what I see on screen counts too, not only what I hear.*
+- The learner presses "Add screenshot"; only then is the visible tab captured. No automatic screenshots. **M**
+- Questions from a screenshot cite the screenshot instead of a quote. The Reviewer's blind solve uses the
+  screenshot alone. **A**
+- Because an image can't be checked word for word in code, screenshot questions are marked "image-based" and
+  watched separately in the dispute rate. **API**
+- Screenshots are kept until the learner deletes them (same as transcripts). **API**
+
+#### F22. Privacy notice and data controls
+- A plain-language privacy notice: what is captured, where it is stored (EU, Stockholm), how long, who sees it,
+  how to delete it. Shown before first use; consent recorded with its version. **E**, **API**
+- Extends F16 (delete my data) to screenshots and email preferences. **API**
+
+#### F23. Email review reminders
+*As a learner, I'm reminded to come back when reviews are due.*
+- Opt-in only; frequency chosen by the learner (daily or weekly digest); every email has a one-click unsubscribe. **API**
+- The email lists what's due and links to the review. No learning content beyond concept names. **API**
+- Sent with Amazon SES (on the free plan) once accounts exist (stage 3). **M**
+
+### 6.4 Planned features (need research or discussion before building)
+
+#### P1. Cross-platform connections
+*When something I learned on DataCamp comes up again in a YouTube video, the Brain notices.*
+- Idea: a concept recognised in source B that the learner met in source A triggers either a quick question ("You
+  learned this on DataCamp. What does it do?") or a note ("You know this: mastery 80%").
+- Fits spaced retrieval at a natural moment. **Research still to do** (recognising the same concept across
+  sources; when asking beats showing) before it goes into the spec.
+
+#### P2. Classroom teaching
+*A teacher records themselves teaching; learners practise from what was taught.*
+To discuss fully before any design. Known questions:
+- **Children's data:** POPIA treats children's personal information as a special category needing a parent's or
+  guardian's consent. Classroom audio may capture learners' voices.
+- **Conflict with D8** ("only the learner sees a Brain"): a teacher view would need a separate decision (e.g. a
+  class summary without individual names, or per-learner sharing with consent).
+- School devices, internet access, and how learners receive the practice.
+
+### 6.5 Still open
+
+| Item | Status |
+|---|---|
+| Cold start (the Brain knows nothing on day one) | Undecided. Options to discuss: an optional placement quiz per exam domain, or start empty. |
+| Transcription accuracy (South African accents, AWS jargon) | Siphosihle researching platforms; test in M1. |
+| **What exactly the Brain saves** (the data dictionary) | Next to define: what counts as learned, touched and confused, and how each guides the AI. |
+| Which AWS exam the DataCamp course prepares for | **Decided: AWS Certified Cloud Practitioner (CLF-C02).** F18's first skeleton: 4 domains (Cloud Concepts 24%, Security and Compliance 30%, Cloud Technology and Services 34%, Billing, Pricing, and Support 12%) and their task statements, from the official exam guide. |
+| Business model and pricing | Individuals and online tutors first; pricing not yet discussed. |
+
+### 6.6 When each new feature is built (proposed)
+
+| Feature | Proposed slice | Why |
+|---|---|---|
+| F18 Exam skeleton | Slice 1 | Cheap, and it reduces AI mistakes from the start |
+| F20 Report an error | Slice 1 | Quality safety net from day one |
+| F19 Spot the error | Slice 2 | Builds on confusions (F11) having real data |
+| F21 Screenshots | Slice 2 | Needs vision-model checks; DataCamp slides make it valuable early |
+| F22 Privacy notice | Before any other user (stage 3) | Legal requirement |
+| F23 Email reminders | Stage 3 | Needs accounts |
+| P1, P2 | After research or discussion | Not yet specified |
