@@ -17,6 +17,7 @@ from pathlib import Path
 try:
     from dotenv import load_dotenv
     load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # the repo-root .env, when run from legacy/
 except ImportError:  # .env support is optional
     pass
 

@@ -4,3 +4,7 @@ data/*.json
 .venv/
 .env
 data/brains/
+# The hackathon app's brains moved with it into legacy/
+legacy/data/
+# Self-test recordings and transcripts contain course content: never commit
+data/validation/

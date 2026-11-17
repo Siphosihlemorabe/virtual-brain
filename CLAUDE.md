@@ -42,5 +42,6 @@ The Brain is a model of what the learner knows and how they understand it, built
 ## History
 
 Built for the Colleague Zero hackathon (demo 14 Nov 2026) as a multi-agent study colleague for Grade 10 maths. The
-rubric is in `./prerequisite`; it no longer governs. Existing agents: Planner, Tutor, Checker, Reviewer, Career
+rubric is in `legacy/prerequisite/`; it no longer governs. The hackathon app now lives in `legacy/` (run it from
+there). Existing agents: Planner, Tutor, Checker, Reviewer, Career
 guide; the Brain is shared memory in plain code.
