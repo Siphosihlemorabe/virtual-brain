@@ -4,6 +4,8 @@ Only repository.py files use this module directly (portability rule P2).
 """
 
 import uuid
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from functools import lru_cache
 
@@ -45,5 +47,26 @@ def get_engine() -> Engine:
     return create_engine(get_settings().database_url, pool_pre_ping=True)
 
 
+@lru_cache
 def session_maker() -> sessionmaker[Session]:
     return sessionmaker(bind=get_engine())
+
+
+@contextmanager
+def unit_of_work(make_session: Callable[[], Session]) -> Iterator[Session]:
+    """All changes inside are saved together if the block finishes, and all undone if anything fails."""
+    session = make_session()
+    try:
+        yield session
+        session.commit()
+    except BaseException:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+
+
+def get_session() -> Iterator[Session]:
+    """FastAPI dependency: one unit of work per request. Endpoints ask for it with Depends(get_session)."""
+    with unit_of_work(session_maker()) as session:
+        yield session

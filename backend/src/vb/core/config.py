@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     llm_default_model: str = "claude-haiku-4-5"
     llm_prompt_models: dict[str, str] = {}  # per prompt, e.g. {"tutor_items": "claude-sonnet-5"}
 
+    # Who is asking. "dev": every request is one fixed local learner (development only; refused when
+    # environment is prod). "cognito": real login (stage 3).
+    auth_mode: Literal["dev", "cognito"] = "dev"
+    dev_learner_email: str = "dev@localhost"
+
 
 @lru_cache
 def get_settings() -> Settings:
