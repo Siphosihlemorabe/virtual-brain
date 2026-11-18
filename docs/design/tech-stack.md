@@ -21,7 +21,7 @@ Use this as the map of the codebase: what each tool does, why it was chosen, and
 | Validation and settings | **Pydantic, pydantic-settings** *(in place)* | attrs, marshmallow | Same library as FastAPI; also validates the AI's JSON (AI rule 6) | One way to validate everything |
 | Database (production) | **Aurora DSQL** (proposed, §3) | RDS PostgreSQL, Aurora Serverless v2, DynamoDB | Permanent free tier; serverless; no private network needed | Some PostgreSQL features missing |
 | Database (local, tests) | **PostgreSQL 16 in Docker** | SQLite | Closest local match (DSQL has no local version) | Code stays within what DSQL supports, plus a smoke test against real DSQL |
-| Database access | **Under review** (§3.2): SQLAlchemy 2.0 + Alembic, or plain SQL with psycopg 3 | SQLModel, Django ORM | — | — |
+| Database access | **SQLAlchemy 2.0 ORM + Alembic** *(agreed 18 Nov)*, with portability rules (`database.md` §2) | Plain SQL with psycopg 3, SQLAlchemy Core, SQLModel | Standard, typed; dialects for PostgreSQL, SQLite and **Aurora DSQL** (official AWS dialect `aurora-dsql-sqlalchemy`); switching databases is a setting plus a dialect | ORM guardrails stop hidden queries (`lazy="raise"`) |
 | Background jobs | **SQS triggering Lambda** in AWS; in-process runner locally | Postgres jobs table (earlier plan), Celery + Redis | Pay per job, scales to zero; DSQL doesn't suit the Postgres locking queue | Job progress stored in the database either way |
 | Transcription | **faster-whisper**, on Lambda in AWS | Amazon Transcribe (paid plan only), OpenAI Whisper API (data to the US) | Free, tested on this machine, data stays in the EU | About $0.10 of compute per lecture hour (estimate) |
 | Language model | **Anthropic API**, a model per job *(agreed)* | Bedrock (no in-Region Claude in eu-north-1), Gemini, OpenAI, self-hosted | Quality, fits our checks | Learner text goes to Anthropic; the privacy notice says so |
@@ -48,17 +48,19 @@ Use this as the map of the codebase: what each tool does, why it was chosen, and
 
 | Option | Monthly cost (rough) | Pros | Cons |
 |---|---|---|---|
-| **Aurora DSQL** (proposed) | **About $0**: permanent free tier of 100,000 compute units and 1 GB per month | Serverless; **reachable without a private network**, so Lambda needs no NAT gateway (about $34/month in eu-north-1) | Not full PostgreSQL: no triggers, no extensions, limits on rows changed per transaction; some sources say no JSONB (store JSON as text). Foreign keys added August 2026, sequences February 2026. No local version |
+| **Aurora DSQL** (proposed) | **About $0**: permanent free tier of 100,000 compute units and 1 GB per month | Serverless; **reachable without a private network**, so Lambda needs no NAT gateway (about $34/month in eu-north-1); official SQLAlchemy dialect with Alembic support | Not full PostgreSQL: no triggers, no extensions, limits on rows changed per transaction, **one DDL statement per transaction, no `DROP COLUMN`**. JSON/JSONB supported since May–June 2026; foreign keys since August 2026; sequences since February 2026. No local version |
 | RDS PostgreSQL (`db.t4g.micro`) | About $12 + storage | Full PostgreSQL, identical locally | Always on; Lambda would need a private network and a NAT gateway: **about $34 more per month** |
 | Aurora Serverless v2 | Near $0 idle (scales to zero) | Full PostgreSQL | **About 15 s to wake** (30+ s after a day idle); same network issue as RDS |
 | DynamoDB | Near $0 | Serverless, no network issue | Not relational; our data is relational |
 
-**For our code, DSQL means:** UUID keys, JSON stored as text, small transactions, no triggers. Step 3 starts by
-checking these limits against current AWS documentation. Fallback if something essential is missing: RDS + NAT.
+**For our code, DSQL means:** UUID keys, small transactions, no triggers, one table change per migration, and
+never dropping a column. These rules are written so the same code also runs on plain PostgreSQL or SQLite
+(`database.md` §2). Fallback if something essential is missing: RDS + NAT.
 
-### 3.2 How the code talks to the database (under review)
+### 3.2 How the code talks to the database
 
-Siphosihle is unsure about SQLAlchemy. Options to decide in the database review:
+**Decided 18 November: SQLAlchemy 2.0 ORM + Alembic**, with portability rules so the database can be changed by
+configuration (`database.md`). The options considered:
 
 | Option | What the code looks like | Pros | Cons |
 |---|---|---|---|
@@ -107,7 +109,7 @@ are estimates, to be confirmed with AWS pricing tools before any deployment.
 
 1. Deployment: A, B or C.
 2. Database: Aurora DSQL with local PostgreSQL, or RDS PostgreSQL.
-3. Database access: plain SQL with psycopg 3, SQLAlchemy Core, or SQLAlchemy ORM (§3.2, database review).
+3. ~~Database access~~ **Decided: SQLAlchemy 2.0 ORM + Alembic**, portable (§3.2, `database.md`).
 4. Confirm credits and plan end date.
 5. Library choices: TanStack Query, Tailwind, react-three-fiber, openapi-typescript.
 
@@ -116,6 +118,8 @@ are estimates, to be confirmed with AWS pricing tools before any deployment.
 - AWS free plan: https://aws.amazon.com/about-aws/whats-new/2025/07/aws-free-tier-credits-month-free-plan/
 - Aurora DSQL pricing: https://aws.amazon.com/rds/aurora/dsql/pricing/
 - Aurora DSQL limitations: https://newsletter.simpleaws.dev/p/aurora-dsql-the-postgresql-compatible-database-that-will-break-your-app-and-how-to-fix-it ; https://hidekazu-konishi.com/entry/amazon_aurora_dsql_design_decision_guide.html
+- Aurora DSQL dialect for SQLAlchemy: https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-dialect-for-sqlalchemy.html ; https://github.com/awslabs/aurora-dsql-orms
+- Aurora DSQL JSON / JSONB support: https://aws.amazon.com/about-aws/whats-new/2026/05/aurora-dsql-json-support/ ; https://aws.amazon.com/about-aws/whats-new/2026/06/amazon-aurora-dsql-supports-jsonb/
 - Aurora Serverless v2 scale to zero: https://dev.to/aws-builders/scaling-to-zero-with-amazon-aurora-serverless-v2-553n
 - Lambda Web Adapter cold starts: https://rafrasenberg.com/fastapi-lambda/
 - RDS and NAT gateway prices: https://www.bytebase.com/dbcost/rds/instance/db.t4g.micro/ ; https://outboundgateway.com/blogs/aws-nat-gateway-pricing/
