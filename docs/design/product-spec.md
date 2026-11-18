@@ -276,11 +276,32 @@ learners try harder when correcting an agent (protégé effect, Chase et al., 20
 ### 6.4 Planned features (need research or discussion before building)
 
 #### P1. Cross-platform connections
-*When something I learned on DataCamp comes up again in a YouTube video, the Brain notices.*
-- Idea: a concept recognised in source B that the learner met in source A triggers either a quick question ("You
-  learned this on DataCamp. What does it do?") or a note ("You know this: mastery 80%").
-- Fits spaced retrieval at a natural moment. **Research still to do** (recognising the same concept across
-  sources; when asking beats showing) before it goes into the spec.
+*When something I learned on DataCamp comes up again in a YouTube video, the Brain reminds me it isn't new.*
+Clarified with Siphosihle on 18 November 2026:
+- The Brain **remembers that a concept was covered**, where and when. When source B (e.g. YouTube) covers a
+  concept met in source A (e.g. DataCamp), it **resurfaces my own earlier question from source A, my answer, and
+  the lecture quote**, ideally asking the question again first (retrieval at a natural, spaced moment).
+- When source B **goes further**, its new concepts are linked as "builds on" the source A concept, so the Brain
+  shows how they connect.
+- **A match never credits mastery and never skips content.** Watching is not learning (fluency illusion,
+  research §1); only answers update the Brain.
+- Matching is **topic-level**, anchored on the exam skeleton (F18) where one exists; every reminder has a
+  **"not related"** button, and wrong matches are tracked like disputes (F20).
+- Still to research before specifying fully: when to show the reminder (during or after the video, given the
+  after-class rule for live sessions) and how to match concepts in courses with no skeleton.
+
+**Phases (the full version is planned, not only the easy one):**
+
+| Phase | What | Research | Safety |
+|---|---|---|---|
+| P1a | Reminders: my earlier question, answer and quote, asked again | Spaced retrieval; linking new to known | Topic-level match, "not related" button |
+| P1b | **Review-or-new map** of a video ("3 parts covered on DataCamp, 2 new") and **test out**: skip or speed through a review part | Expertise reversal effect (Kalyuga): redundant instruction can hurt learners who already know it | Parts marked *likely* review only; skipping requires answering my earlier question correctly **now** |
+| P1c | **Conflict alerts**: "DataCamp said X, this video says Y" | Refutation text: meta-analysis of 44 comparisons, g = 0.41; Tippett (2010) review | Both quotes plus the official AWS documentation shown; the learner decides, never the AI |
+| P1d | P1b live, during the video | | Near-real-time local transcription in short chunks |
+| Never | Raising mastery because content was watched again | Fluency illusion | — |
+
+**Gate for P1b–P1d:** a labelled set of real cross-platform matches (DataCamp and YouTube, AWS topics). Features
+that act on a match switch on only when at least 95% of "you've covered this" claims are correct on that set.
 
 #### P2. Classroom teaching
 *A teacher records themselves teaching; learners practise from what was taught.*

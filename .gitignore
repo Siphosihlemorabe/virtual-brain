@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 data/*.json
 .venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 .env
 data/brains/
 # The hackathon app's brains moved with it into legacy/
