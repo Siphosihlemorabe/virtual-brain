@@ -189,8 +189,13 @@ reading the Brain is fast; the attempts log stays the source of truth.
 | `kind` | String | e.g. `process_segment` |
 | `status` | String | `queued`, `running`, `done`, `failed` |
 | `payload` | JSON | Inputs |
-| `error` | Text, nullable | |
+| `attempts` | Integer | Times started; failed for good after 3 (added in stage 0 step 4) |
+| `error` | Text, nullable | The last error |
 | `started_at`, `finished_at` | DateTime, nullable | |
+
+A runner **claims** a job with `UPDATE … SET status = 'running' WHERE id = … AND status = 'queued'`; only one
+runner's update can change the row, so no database-specific locking is needed (rule P6). Jobs still `running` after
+30 minutes are treated as crashed and re-queued.
 
 **`job_log`**: the agent log lines the side panel shows.
 
