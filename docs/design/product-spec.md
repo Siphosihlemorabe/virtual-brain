@@ -273,6 +273,18 @@ learners try harder when correcting an agent (protégé effect, Chase et al., 20
 - The email lists what's due and links to the review. No learning content beyond concept names. **API**
 - Sent with Amazon SES (on the free plan) once accounts exist (stage 3). **M**
 
+#### F24. Import a transcript
+*As a learner or tutor, I can bring in a transcript I already have, from any tool.*
+Research (18 November): Fireflies has a self-serve API; Zoom transcripts need the host's account; Google Meet needs
+app verification; Teams needs an organisation admin; Otter's API is Enterprise-only; consumer NotebookLM has no
+official API. **Every one of these tools lets users download a transcript**, so import works everywhere.
+- Paste text, or upload `.vtt`, `.srt`, `.txt` or `.docx`; timestamps are kept when the file has them. **C**
+  (TranscriptSource contract suite)
+- The learner confirms they have permission to use the transcript (it may contain other people's words). **E**, **API**
+- An imported transcript becomes a lecture with segments and goes through the same pipeline (F4–F6). **API**
+- Later adapters, same contract: Fireflies API, Zoom (host), then Google Meet and Teams for organisations (P2).
+- Proposed for **slice 1**: cheap, and useful before the extension exists.
+
 ### 6.4 Planned features (need research or discussion before building)
 
 #### P1. Cross-platform connections
@@ -328,6 +340,7 @@ To discuss fully before any design. Known questions:
 |---|---|---|
 | F18 Exam skeleton | Slice 1 | Cheap, and it reduces AI mistakes from the start |
 | F20 Report an error | Slice 1 | Quality safety net from day one |
+| F24 Import a transcript | Slice 1 | Works with every platform, before the extension exists |
 | F19 Spot the error | Slice 2 | Builds on confusions (F11) having real data |
 | F21 Screenshots | Slice 2 | Needs vision-model checks; DataCamp slides make it valuable early |
 | F22 Privacy notice | Before any other user (stage 3) | Legal requirement |
