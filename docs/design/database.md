@@ -214,8 +214,9 @@ runner's update can change the row, so no database-specific locking is needed (r
 | `prompt_id`, `prompt_version`, `model` | String | |
 | `input_tokens`, `output_tokens` | Integer | |
 | `latency_ms` | Integer | |
-| `cost_usd` | Float | Computed from the model's price |
+| `cost_usd` | Float, nullable | Computed from the model's list price; null if the price is unknown |
 | `ok` | Boolean | |
+| `error` | Text, nullable | Why it failed (added in stage 0 step 5) |
 
 ## 4. Indexes
 

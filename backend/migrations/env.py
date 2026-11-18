@@ -5,6 +5,7 @@ from sqlalchemy import create_engine
 
 import vb.accounts.models  # noqa: F401  (registers the tables on Base.metadata)
 import vb.core.jobs.models  # noqa: F401
+import vb.llm.models  # noqa: F401
 from vb.core.config import get_settings
 from vb.core.db import Base
 
