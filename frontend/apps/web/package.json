@@ -1,0 +1,23 @@
+{
+  "name": "@vb/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.108.2",
+    "@vb/api-client": "*",
+    "@vb/ui": "*",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "@vitejs/plugin-react": "^6.3.0",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.8"
+  }
+}

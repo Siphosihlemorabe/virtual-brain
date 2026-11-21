@@ -1,0 +1,19 @@
+{
+  "name": "@vb/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vb/api-client": "*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": ">=5",
+    "react": ">=19"
+  }
+}

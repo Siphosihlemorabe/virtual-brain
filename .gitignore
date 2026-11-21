@@ -6,6 +6,10 @@ data/*.json
 .ruff_cache/
 .mypy_cache/
 .env
+.env.local
+# Frontend: installed packages and build output
+node_modules/
+dist/
 data/brains/
 # The hackathon app's brains moved with it into legacy/
 legacy/data/

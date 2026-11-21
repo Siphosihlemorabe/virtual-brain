@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     auth_mode: Literal["dev", "cognito"] = "dev"
     dev_learner_email: str = "dev@localhost"
 
+    # Web pages allowed to call this API from a browser (CORS). Default: the local web dev server only.
+    # The extension doesn't need an entry: its manifest's host_permissions let it call the API directly.
+    cors_origins: list[str] = ["http://localhost:5173"]
+
 
 @lru_cache
 def get_settings() -> Settings:
