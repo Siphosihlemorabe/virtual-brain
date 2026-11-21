@@ -24,6 +24,8 @@ The Brain is a model of what the learner knows and how they understand it, built
 - After each step: list **every file created, edited, moved or deleted**, with one line on why.
 - Tests come from the spec's acceptance criteria and are written before the code; name them after the feature ID.
 - One step per commit, after the user has reviewed it.
+- After each step, update `docs/learning-guide.md`: what was built, the concepts it teaches, and any decision with
+  its alternatives. The user is learning the codebase from it.
 
 ## Rules
 
